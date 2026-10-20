@@ -1,0 +1,64 @@
+# Observability overlay: Prometheus (metrics + alerts), Grafana (dashboards), Tempo (traces) behind an OpenTelemetry
+# Collector, and Loki + Promtail (logs).
+#
+#   docker compose -f docker-compose.yml -f ops/docker-compose.observability.yml up -d
+#   Grafana http://localhost:3000 (admin / admin, change it)    Prometheus http://localhost:9090
+#
+# The overlay also switches tracing on in the API and the worker by pointing them at the collector.
+
+services:
+  api:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  worker:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["9090:9090"]
+    depends_on: [api]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes: ["./ops/otel-collector.yaml:/etc/otel/config.yaml:ro"]
+    depends_on: [tempo]
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: ["./ops/tempo.yaml:/etc/tempo.yaml:ro", "tempo_data:/var/tempo"]
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes: ["./ops/loki.yaml:/etc/loki/config.yaml:ro", "loki_data:/loki"]
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./ops/promtail.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports: ["3000:3000"]
+    depends_on: [prometheus, tempo, loki]
+
+volumes:
+  tempo_data:
+  loki_data:
+  grafana_data:

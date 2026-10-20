@@ -1,0 +1,72 @@
+# Alerts that matter for a RAG system. The first two are the ones generic dashboards miss: a retrieval regression,
+# a bad corpus update or a model change usually shows up as a change in refusals or dropped claims BEFORE users complain.
+groups:
+  - name: citesure-quality
+    rules:
+      - alert: RefusalRateSpike
+        expr: |
+          sum(rate(citesure_ask_total{status="refused"}[30m]))
+            / clamp_min(sum(rate(citesure_ask_total[30m])), 0.0001) > 0.5
+          and sum(rate(citesure_ask_total[30m])) * 1800 > 10
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than half of the questions are being refused"
+          description: >-
+            A sudden rise usually means retrieval regressed (bad reindex, embedding change), the corpus changed, or access rules
+            were tightened. Run the evaluation, then the retrieval-debugger subagent. Runbook: docs/architecture.md#operations
+
+      - alert: VerificationDropRateSpike
+        expr: |
+          sum(rate(citesure_claims_dropped_total[30m]))
+            / clamp_min(sum(rate(citesure_claims_drafted_total[30m])), 0.0001) > 0.3
+          and sum(rate(citesure_claims_drafted_total[30m])) * 1800 > 10
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 30% of drafted claims are failing verification"
+          description: >-
+            The model is producing unsupported or mis-quoted claims. Check for an ANSWER_MODEL or prompt change, or chunk text that
+            no longer matches (parsing change). Users still see only verified claims, but quality is dropping.
+
+  - name: citesure-availability
+    rules:
+      - alert: ApiDown
+        expr: up{job="citesure-api"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "The CiteSure API is not responding to Prometheus" }
+
+      - alert: WorkerDown
+        expr: up{job="citesure-worker"} == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "The ingestion worker is down: uploads will stay queued" }
+
+      - alert: ServerErrors
+        expr: sum(rate(citesure_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(citesure_http_requests_total[5m])), 0.0001) > 0.05
+        for: 10m
+        labels: { severity: critical }
+        annotations: { summary: "More than 5% of requests return 5xx" }
+
+      - alert: IngestionBacklog
+        expr: citesure_job_queue_depth > 50
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 50 background jobs have been waiting for 15 minutes"
+          description: "The worker is slow or stuck. Check its logs; a failing parser retries with backoff."
+
+  - name: citesure-cost
+    rules:
+      - alert: LlmSpendHigh
+        expr: increase(citesure_ask_cost_usd_total[1h]) > 5
+        for: 0m
+        labels: { severity: warning }
+        annotations: { summary: "More than $5 of estimated LLM spend in the last hour (possible abuse or a runaway loop)" }
+
+      - alert: SlowAnswers
+        expr: histogram_quantile(0.95, sum by (le) (rate(citesure_stage_latency_seconds_bucket{stage="generate"}[15m]))) > 8
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "p95 answer generation latency is above 8 seconds" }

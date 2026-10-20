@@ -1,0 +1,83 @@
+{
+  "uid": "citesure-rag",
+  "title": "CiteSure: RAG health",
+  "tags": ["citesure", "rag"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Refusal rate (30m)", "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "description": "Share of questions answered with 'I don't have information'. A sudden rise means retrieval, corpus or access changed.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(citesure_ask_total{status=\"refused\"}[30m])) / clamp_min(sum(rate(citesure_ask_total[30m])), 0.0001)" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.3 }, { "color": "red", "value": 0.5 }] } }, "overrides": [] }
+    },
+    {
+      "id": 2, "type": "stat", "title": "Verification drop rate (30m)", "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "description": "Share of drafted claims removed by verification. High values mean the model is making unsupported claims.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(citesure_claims_dropped_total[30m])) / clamp_min(sum(rate(citesure_claims_drafted_total[30m])), 0.0001)" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.15 }, { "color": "red", "value": 0.3 }] } }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "stat", "title": "Cost per answer (1h, USD)", "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "(sum(increase(citesure_ask_cost_usd_total[1h])) or vector(0)) / clamp_min(sum(increase(citesure_ask_total[1h])), 1)" }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "stat", "title": "Ingestion queue depth", "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "max(citesure_job_queue_depth)" }],
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 20 }, { "color": "red", "value": 50 }] } }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Latency per pipeline stage: p50", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{stage}}", "expr": "histogram_quantile(0.5, sum by (le, stage) (rate(citesure_stage_latency_seconds_bucket[5m])))" }],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Latency per pipeline stage: p95", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{stage}}", "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(citesure_stage_latency_seconds_bucket[5m])))" }],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Questions per minute by outcome", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{status}}", "expr": "sum by (status) (rate(citesure_ask_total[5m])) * 60" }],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Claims drafted vs dropped (per minute)", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "drafted", "expr": "sum(rate(citesure_claims_drafted_total[5m])) * 60" },
+        { "refId": "B", "legendFormat": "dropped by verification", "expr": "sum(rate(citesure_claims_dropped_total[5m])) * 60" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "HTTP requests by status", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{status}}", "expr": "sum by (status) (rate(citesure_http_requests_total[5m]))" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Documents ingested by result", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{status}}", "expr": "sum by (status) (increase(citesure_ingest_documents_total[15m])) or label_replace(vector(0), \"status\", \"none\", \"\", \"\")" }],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+    {
+      "id": 11, "type": "logs", "title": "API warnings and errors", "gridPos": { "h": 8, "w": 24, "x": 0, "y": 29 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{ "refId": "A", "expr": "{service=~\"api|worker\"} |~ \"(?i)warn|error|exception\"" }]
+    }
+  ]
+}
