@@ -292,7 +292,7 @@ Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chap
 - [x] Quality dashboard UI: metrics per eval run and a compare view
 - [x] Feedback → golden-set promotion flow
 - [x] `.github/workflows/rag-eval.yml`: runs the eval with Fake embedder/LLM for determinism on PRs, and the real-model eval on a nightly schedule - written and every command run locally; **not run on GitHub**; the real-model nightly run was never executed (no API key)
-- [ ] Stretch: push results to EvalOps (Project 1) through its `/gate` API
+- [x] Stretch: push results to EvalOps (Project 1) through its `POST /gate/ingest` API - see `docs/evalops-integration.md`; verified locally against a real EvalOps, **not run on GitHub** (needs the `EVALOPS_*` secrets and a hosted EvalOps)
 
 **Done when:** the README shows a real before/after table, for example *"hybrid + rerank raised recall@5 from 0.71 to 0.88"*.
 **Rubric:** 9, 11 · **Guide chapter:** *"Measuring RAG: recall, faithfulness and the metrics that actually matter"*.

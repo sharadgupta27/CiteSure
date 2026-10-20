@@ -4,9 +4,23 @@ name: RAG evaluation
 # chunking, prompts or verification must not lower the baseline metrics, and restricted questions must NEVER be answered.
 # Nightly: the same golden set with the real models (needs the ANTHROPIC_API_KEY secret), then the nightly agent
 # diffs the run against the previous one and opens an issue for regressions.
+# EvalOps (project 1): when the EVALOPS_URL and EVALOPS_API_KEY secrets and the EVALOPS_DATASET_ID variable exist, the
+# deterministic run's per-question results are also sent to EvalOps, which gates the build on its verdict. A PR is
+# compared with the latest run on main, and each push to main becomes the next baseline. Without the secrets (a fork,
+# or EvalOps not set up) that step is skipped and the committed-baseline check above remains the gate.
+# One-time setup: docs/evalops-integration.md.
 
 on:
   pull_request:
+    paths:
+      - "backend/app/rag/**"
+      - "backend/app/services/**"
+      - "backend/app/llm/**"
+      - "backend/app/embeddings/**"
+      - "backend/evals/**"
+      - "corpus/**"
+  push:
+    branches: [main]
     paths:
       - "backend/app/rag/**"
       - "backend/app/services/**"
@@ -38,6 +52,9 @@ jobs:
       LLM_PROVIDER: fake
       EMBEDDING_PROVIDER: fake
       RERANKER: lexical
+      EVALOPS_URL: ${{ secrets.EVALOPS_URL }}
+      EVALOPS_API_KEY: ${{ secrets.EVALOPS_API_KEY }}
+      EVALOPS_DATASET_ID: ${{ vars.EVALOPS_DATASET_ID }}
     defaults:
       run:
         working-directory: backend
@@ -48,9 +65,22 @@ jobs:
       - run: uv sync --frozen
       - run: uv run alembic upgrade head
       - name: Experiment matrix
-        run: uv run python -m app.evals.run --matrix evals/experiments.yaml --out eval-results.json --md eval-results.md
+        run: >-
+          uv run python -m app.evals.run --matrix evals/experiments.yaml --out eval-results.json --md eval-results.md
+          --cases-out eval-cases.json --cases-config hybrid+rerank
       - name: Compare with the committed baseline
         run: uv run python evals/check_regression.py eval-results.json evals/baseline.json --config hybrid+rerank
+      - name: EvalOps gate (per-question results vs the latest run on main)
+        if: >-
+          github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+          && env.EVALOPS_URL != '' && env.EVALOPS_API_KEY != '' && env.EVALOPS_DATASET_ID != ''
+        env:
+          HEAD_LABEL: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
+          # The first push to main finds no 'main' version in EvalOps yet; a PR must never get that leniency.
+          BOOTSTRAP: ${{ github.event_name == 'push' && '--bootstrap-ok' || '' }}
+        run: >-
+          python3 evals/publish_to_evalops.py eval-cases.json --url "$EVALOPS_URL" --dataset-id "$EVALOPS_DATASET_ID"
+          --head-label "$HEAD_LABEL" --baseline-label main --git-sha "$GITHUB_SHA" $BOOTSTRAP
       - name: Show the table in the job summary
         if: always()
         run: cat eval-results.md >> "$GITHUB_STEP_SUMMARY"

@@ -106,3 +106,13 @@ Each entry: goal → prompt/delegation → what the AI produced → what the hum
 - **AI produced:** README, architecture, rag-design, eval-results, deployment docs, 14 Substack chapters, 12 generated figures, 12 screenshots of the running app.
 - **Corrections made on review of its own text:** a fabricated anecdote in chapter 1 was removed; test counts and retry timings were checked against the code.
 - **Not done:** demo video, public URL, publishing the series.
+
+
+### 2026-10-21 - Stretch: EvalOps as the quality gate in CI
+
+- **Goal:** send the per-question results of the golden-set run to EvalOps (project 1) and fail the build on its verdict. EvalOps could not accept results it had not computed itself, so the work spans both repositories: `POST /gate/ingest` there (see its `docs/ai-workflow.md`), the export, the publisher and the workflow here.
+- **Human decision:** a hosted EvalOps (per-question regressions against the latest run on `main`) rather than an ephemeral one started in CI (absolute thresholds only).
+- **AI produced:** `app/evals/evalops.py` (pass rule, stable `case_ref`, dataset export), `--cases-out` on the eval runner, `evals/publish_to_evalops.py` (stdlib, exit 0/1/2, bootstrap for the first `main` run), a gated step and a `push` trigger in `rag-eval.yml`, `docs/evalops-integration.md`, 21 tests.
+- **Review:** an independent subagent reviewed the EvalOps contract before it was written. Two blocking findings (request size, unknown baseline label) were fixed before any code.
+- **Bugs found by running it, not by reading it:** the output cap still used the pre-review 50000 instead of 5000 (a unit test caught it); `python -m app.evals.evalops` did nothing because the module had no `__main__` guard (only the real end-to-end run caught it, so a test now runs the documented command).
+- **Verification:** real eval (fake providers, pgvector) into a real local EvalOps: first `main` run bootstraps and passes at 85 percent; an identical PR passes with 0 regressions; 4 degraded answers fail it (75 percent, 4 regressions) with exit code 1. **Not run on GitHub:** the workflow change itself, and the hosted setup (no hosted EvalOps exists yet).

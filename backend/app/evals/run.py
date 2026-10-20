@@ -24,6 +24,7 @@ from sqlalchemy import delete
 
 from app.config import Settings, get_settings
 from app.db import make_engine, make_sessionmaker
+from app.evals.evalops import to_ingest_results
 from app.models import User, Workspace
 from app.providers import build_providers
 from app.rag.types import PipelineConfig
@@ -61,7 +62,10 @@ def load_experiments(path: Path | None, settings: Settings) -> list[dict[str, An
 
 
 async def run(
-    experiments: list[dict[str, Any]], settings: Settings, failures: list[str] | None = None
+    experiments: list[dict[str, Any]],
+    settings: Settings,
+    failures: list[str] | None = None,
+    items_by_config: dict[str, list[ItemResult]] | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     engine = make_engine(settings.database_url)
     sessionmaker = make_sessionmaker(engine)
@@ -92,6 +96,8 @@ async def run(
                         )
                         items = await run_golden_set(session, providers, tuned, seeded.workspace_id, golden, config)
                         results.append((experiment["name"], aggregate(items)))
+                        if items_by_config is not None:
+                            items_by_config[experiment["name"]] = items
                         if failures is not None:
                             failures += describe_failures(experiment["name"], items)
         return results
@@ -111,12 +117,25 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="write all metrics as JSON")
     parser.add_argument("--show-failures", action="store_true", help="print questions that were refused, missed or wrong")
     parser.add_argument("--md", type=Path, help="write the markdown table to a file")
+    parser.add_argument(
+        "--cases-out",
+        type=Path,
+        help="write one configuration's per-question results as an EvalOps /gate/ingest `results` array (JSON)",
+    )
+    parser.add_argument("--cases-config", default="hybrid+rerank", help="the configuration --cases-out exports")
     args = parser.parse_args()
 
     settings = get_settings()
     experiments = load_experiments(args.matrix, settings)
     failures: list[str] | None = [] if args.show_failures else None
-    results = asyncio.run(run(experiments, settings, failures))
+    items_by_config: dict[str, list[ItemResult]] | None = {} if args.cases_out else None
+    results = asyncio.run(run(experiments, settings, failures, items_by_config))
+    if args.cases_out and items_by_config is not None:
+        if args.cases_config not in items_by_config:
+            parser.error(f"--cases-config {args.cases_config!r} is not one of {sorted(items_by_config)}")
+        args.cases_out.write_text(
+            json.dumps(to_ingest_results(items_by_config[args.cases_config]), indent=2), encoding="utf-8"
+        )
     table = format_table(results)
     print(
         f"\nProviders: llm={settings.llm_provider} embeddings={settings.embedding_provider} reranker={settings.reranker}\n"
