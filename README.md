@@ -25,23 +25,23 @@ CiteSure fixes both:
 3. The same employee asks *"What is the maximum severance in weeks?"*, which exists only in the confidential collection, and gets *"I don't have information on that"*. An HR member asks the same question and gets the answer, cited to the confidential document.
 4. A thumbs-down with a comment lands in the admin's feedback queue; the admin promotes it to the golden set. The **Quality** page runs the evaluation and compares configurations (for example vector-only versus hybrid + rerank).
 
-| Source viewer (quoted words highlighted) | Restricted question refused | HR sees the confidential answer |
-|---|---|---|
+| Source viewer (quoted words highlighted)            | Restricted question refused                                 | HR sees the confidential answer                         |
+| --------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
 | ![](substack/images/03-source-viewer-highlight.png) | ![](substack/images/04-refusal-for-restricted-question.png) | ![](substack/images/06-hr-answer-from-confidential.png) |
 
-| Documents and ingestion status | Access control | Quality dashboard |
-|---|---|---|
+| Documents and ingestion status              | Access control                                       | Quality dashboard                           |
+| ------------------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
 | ![](substack/images/07-admin-documents.png) | ![](substack/images/08-workspace-access-control.png) | ![](substack/images/09-quality-compare.png) |
 
 ## 2. Results (measured)
 
 Deterministic fake providers, 40 golden questions, three identical runs. Full table, caveats and known failures: [docs/eval-results.md](docs/eval-results.md).
 
-| config | recall@6 | MRR | cite-precision | cite-recall | wrongly refused | **restricted questions refused** |
-|---|---|---|---|---|---|---|
-| vector only | 1.00 | 0.91 | 0.93 | 0.93 | 7% | **100%** |
-| hybrid (vector + keyword) | 1.00 | 0.94 | 0.93 | 0.93 | 7% | **100%** |
-| **hybrid + rerank (default)** | 1.00 | **0.98** | 0.91 | 0.97 | **3%** | **100%** |
+| config                              | recall@6 | MRR            | cite-precision | cite-recall | wrongly refused | **restricted questions refused** |
+| ----------------------------------- | -------- | -------------- | -------------- | ----------- | --------------- | -------------------------------------- |
+| vector only                         | 1.00     | 0.91           | 0.93           | 0.93        | 7%              | **100%**                         |
+| hybrid (vector + keyword)           | 1.00     | 0.94           | 0.93           | 0.93        | 7%              | **100%**                         |
+| **hybrid + rerank (default)** | 1.00     | **0.98** | 0.91           | 0.97        | **3%**    | **100%**                         |
 
 > Adding the reranker raised MRR from **0.91 to 0.98** and cut wrongful refusals from **7% to 3%**; no configuration ever answered a restricted question. These numbers measure the retrieval, citation and access-control plumbing with fake models; the real-model run is a nightly job (needs an API key) and is **not** included here.
 
@@ -53,15 +53,15 @@ React (Vite) ──REST/SSE──▶ FastAPI ──▶ Postgres 16 + pgvector   
                             └──▶ LLM provider (Anthropic | fake)   embeddings (fastembed | fake)   blobs (local | S3)
 ```
 
-| Part | Technology | Role |
-|---|---|---|
-| Frontend | React 18, TypeScript, Vite, Tailwind, TanStack Query | Ask, Documents, Workspace admin, Feedback queue, Quality dashboard, source viewer. One typed API client generated from `openapi.yaml`. |
-| Contract | OpenAPI 3.1 (`openapi.yaml`) + Spectral | Source of truth; a drift test fails if the backend disagrees. |
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic | Layered `api → services → repositories`. |
-| Database | PostgreSQL 16 + pgvector + full-text search | One database for documents, vectors, ACLs, jobs, answers and evaluation. |
-| Containers | Docker, Compose | `docker compose up` runs db, migrations, api, worker and frontend. |
-| CI/CD | GitHub Actions | Lint, types, unit, integration, E2E, security scans, image build; RAG-eval gate; deploy to EC2 after green CI. |
-| Observability | OpenTelemetry, Prometheus, Grafana, Loki, Tempo | Per-stage latency, refusal/verification rates, cost, alerts. |
+| Part          | Technology                                           | Role                                                                                                                                     |
+| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend      | React 18, TypeScript, Vite, Tailwind, TanStack Query | Ask, Documents, Workspace admin, Feedback queue, Quality dashboard, source viewer. One typed API client generated from `openapi.yaml`. |
+| Contract      | OpenAPI 3.1 (`openapi.yaml`) + Spectral            | Source of truth; a drift test fails if the backend disagrees.                                                                            |
+| Backend       | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic  | Layered `api → services → repositories`.                                                                                             |
+| Database      | PostgreSQL 16 + pgvector + full-text search          | One database for documents, vectors, ACLs, jobs, answers and evaluation.                                                                 |
+| Containers    | Docker, Compose                                      | `docker compose up` runs db, migrations, api, worker and frontend.                                                                     |
+| CI/CD         | GitHub Actions                                       | Lint, types, unit, integration, E2E, security scans, image build; RAG-eval gate; deploy to EC2 after green CI.                           |
+| Observability | OpenTelemetry, Prometheus, Grafana, Loki, Tempo      | Per-stage latency, refusal/verification rates, cost, alerts.                                                                             |
 
 More detail and the request flows: [docs/architecture.md](docs/architecture.md). Every RAG design decision and the experiment behind it: [docs/rag-design.md](docs/rag-design.md).
 
@@ -75,13 +75,13 @@ docker compose up -d --build                           # db + migrations + api :
 docker compose run --rm api python -m app.seed         # demo users, 2 collections, 20 documents, 40 golden questions
 ```
 
-Open <http://localhost:5173> and sign in (password for all demo users: `citesure-demo`, local development only):
+Open [http://localhost:5173](http://localhost:5173) and sign in (password for all demo users: `citesure-demo`, local development only):
 
-| User | Role | Try |
-|---|---|---|
-| `employee@acme.example` | member | ask about parental leave; ask about severance (refused) |
-| `hr@acme.example` | member + `hr` group | ask about severance (answered, cited to the confidential document) |
-| `admin@acme.example` | workspace admin | Documents, Workspace, Feedback queue, **Quality** (run the evaluation) |
+| User                      | Role                  | Try                                                                          |
+| ------------------------- | --------------------- | ---------------------------------------------------------------------------- |
+| `employee@acme.example` | member                | ask about parental leave; ask about severance (refused)                      |
+| `hr@acme.example`       | member + `hr` group | ask about severance (answered, cited to the confidential document)           |
+| `admin@acme.example`    | workspace admin       | Documents, Workspace, Feedback queue, **Quality** (run the evaluation) |
 
 The default setup uses deterministic **fake providers** (no API key, no downloads, no cost). To use real models:
 
@@ -97,16 +97,16 @@ Variables are documented in [.env.example](.env.example). Stop everything: `dock
 
 ## 5. Test it
 
-| What | Command | Needs | Count |
-|---|---|---|---|
-| Backend unit (fakes, fast) | `cd backend && uv sync && uv run pytest -m "not integration"` | nothing | 94 |
-| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration` | Docker | 73 |
-| Lint and types | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app` | | |
-| Frontend (logic, components, pages) | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck` | | 59 |
-| API contract | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py` | | |
-| End to end (browser, against Compose) | `docker compose up -d --build && docker compose run --rm api python -m app.seed && cd e2e && npm ci && npx playwright install chromium && npx playwright test` | Docker | 9 |
-| Agent pack | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`; `cd mcp-server && uv run pytest`; `cd custom-agent && uv run --no-project --with pytest --with httpx python -m pytest` | | 60 + 12 + 13 |
-| Evaluation (quality) | `cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml` | Postgres | 40 questions |
+| What                                                                                          | Command                                                                                                                                                                                              | Needs    | Count        |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ |
+| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 94           |
+| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 73           |
+| Lint and types                                                                                | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app`                                                                                                             |          |              |
+| Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 59           |
+| API contract                                                                                  | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py`                                                                                                |          |              |
+| End to end (browser, against Compose)                                                         | `docker compose up -d --build && docker compose run --rm api python -m app.seed && cd e2e && npm ci && npx playwright install chromium && npx playwright test`                                     | Docker   | 9            |
+| Agent pack                                                                                    | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`; `cd mcp-server && uv run pytest`; `cd custom-agent && uv run --no-project --with pytest --with httpx python -m pytest` |          | 60 + 12 + 13 |
+| Evaluation (quality)                                                                          | `cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml`                                                                                                                     | Postgres | 40 questions |
 
 Integration tests are clearly separated (`@pytest.mark.integration`, folder `tests/integration/`) and never call a real LLM or embedding API. The **ACL leak tests** cover every endpoint that returns content: documents, chunks, files, ask, streaming, retrieval diagnostics, and stored answers after access is revoked.
 
@@ -114,14 +114,14 @@ Integration tests are clearly separated (`@pytest.mark.integration`, folder `tes
 
 Everything a coding agent needs to work on CiteSure safely: [docs/agent-extension-pack.md](docs/agent-extension-pack.md) · [permissions](docs/permissions.md) · [demo script](docs/demo.md).
 
-| Piece | Where |
-|---|---|
-| Project instructions | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
-| 4 reusable workflows (skills) | [agent-capabilities/](agent-capabilities/): `add-golden-question`, `ingest-new-doc-type`, `tune-retrieval`, `review-api-change` |
-| 3 specialist subagents (read-only) | `retrieval-debugger`, `citation-auditor`, `api-contract-reviewer` |
-| MCP server (6 tools, scoped service user) | [mcp-server/](mcp-server/) |
-| Guardrail hooks (secrets, golden-set, migrations, destructive commands; format; stop checks) | [agent-hooks/](agent-hooks/) |
-| Plugin and nightly custom agent | [plugins/citesure-agent-pack/](plugins/citesure-agent-pack/), [custom-agent/](custom-agent/) |
+| Piece                                                                                        | Where                                                                                                                                  |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Project instructions                                                                         | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                                                                           |
+| 4 reusable workflows (skills)                                                                | [agent-capabilities/](agent-capabilities/): `add-golden-question`, `ingest-new-doc-type`, `tune-retrieval`, `review-api-change` |
+| 3 specialist subagents (read-only)                                                           | `retrieval-debugger`, `citation-auditor`, `api-contract-reviewer`                                                                |
+| MCP server (6 tools, scoped service user)                                                    | [mcp-server/](mcp-server/)                                                                                                              |
+| Guardrail hooks (secrets, golden-set, migrations, destructive commands; format; stop checks) | [agent-hooks/](agent-hooks/)                                                                                                            |
+| Plugin and nightly custom agent                                                              | [plugins/citesure-agent-pack/](plugins/citesure-agent-pack/), [custom-agent/](custom-agent/)                                             |
 
 ## 7. Security
 
@@ -144,22 +144,22 @@ agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substac
 
 ## 10. Rubric coverage
 
-| # | Criterion | Where |
-|---|---|---|
-| 1 | Problem description | §1, [product-spec.md](product-spec.md) |
-| 2 | AI-assisted workflow | [docs/ai-workflow.md](docs/ai-workflow.md), [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
-| 3 | Technologies and architecture | §3, [docs/architecture.md](docs/architecture.md), [docs/rag-design.md](docs/rag-design.md) |
-| 4 | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 59 Vitest tests, §5 |
-| 5 | API contract | [openapi.yaml](openapi.yaml), generated client, drift test |
-| 6 | Backend (structure, contract, tests) | `backend/app/`, 167 pytest tests |
-| 7 | Database (environments, docs) | PostgreSQL + pgvector, Alembic, [architecture.md § environments](docs/architecture.md#environments-and-the-database-config-rubric-7) |
-| 8 | Containerisation | [docker-compose.yml](docker-compose.yml), multi-stage Dockerfiles, §4 |
-| 9 | Integration tests | `backend/tests/integration/`, `e2e/` |
-| 10 | Deployment | pipeline and runbook ready; **not deployed here** (§8) |
-| 11 | CI/CD | [.github/workflows/](.github/workflows/) (CI, RAG-eval gate, deploy) |
-| 12 | Agent extension pack | §6 |
-| 13 | Security, audit, DevOps | [security/](security/), [ops/](ops/) |
-| 14 | Reproducibility | §4 and §5 |
+| #  | Criterion                                    | Where                                                                                                                                |
+| -- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 1  | Problem description                          | §1, [product-spec.md](product-spec.md)                                                                                               |
+| 2  | AI-assisted workflow                         | [docs/ai-workflow.md](docs/ai-workflow.md), [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                              |
+| 3  | Technologies and architecture                | §3, [docs/architecture.md](docs/architecture.md), [docs/rag-design.md](docs/rag-design.md)                                            |
+| 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 59 Vitest tests, §5                                                                          |
+| 5  | API contract                                 | [openapi.yaml](openapi.yaml), generated client, drift test                                                                            |
+| 6  | Backend (structure, contract, tests)         | `backend/app/`, 167 pytest tests                                                                                                   |
+| 7  | Database (environments, docs)                | PostgreSQL + pgvector, Alembic, [architecture.md § environments](docs/architecture.md#environments-and-the-database-config-rubric-7) |
+| 8  | Containerisation                             | [docker-compose.yml](docker-compose.yml), multi-stage Dockerfiles, §4                                                                |
+| 9  | Integration tests                            | `backend/tests/integration/`, `e2e/`                                                                                             |
+| 10 | Deployment                                   | pipeline and runbook ready; **not deployed here** (§8)                                                                        |
+| 11 | CI/CD                                        | [.github/workflows/](.github/workflows/) (CI, RAG-eval gate, deploy)                                                                  |
+| 12 | Agent extension pack                         | §6                                                                                                                                  |
+| 13 | Security, audit, DevOps                      | [security/](security/), [ops/](ops/)                                                                                                   |
+| 14 | Reproducibility                              | §4 and §5                                                                                                                          |
 
 ## 11. License
 
