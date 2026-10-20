@@ -6,7 +6,7 @@ Raw outputs are in [scan-results/](scan-results/). Reproduce everything with `ba
 |---|---|---|---|---|
 | gitleaks | secrets in the working tree | **no leaks found** | same | `scan-results/gitleaks.txt` |
 | Semgrep (244 rules: Python, TypeScript/React, Dockerfile, GitHub Actions) | code patterns | **1 finding**: `workflow-run-target-code-checkout` in `deploy.yml`, mitigated by an `if:` condition, accepted as A10 | **35** (mutable action tags + the same rule) | `semgrep.txt`, `semgrep.BEFORE-fix.txt` |
-| Trivy filesystem (vulnerabilities, secrets, misconfiguration) | lockfiles, Dockerfiles | **0 vulnerabilities, 0 misconfigurations** (backend, frontend, MCP server lockfiles; both Dockerfiles) | 1 HIGH: frontend image ran as root (DS-0002) | `trivy-fs.txt` (the before-fix output was not saved; the finding is described in the audit) |
+| Trivy filesystem (vulnerabilities, secrets, misconfiguration) | lockfiles, Dockerfiles | **0 vulnerabilities, 0 misconfigurations** (backend, frontend, MCP server lockfiles; both Dockerfiles) | 1 HIGH: frontend image ran as root (DS-0002) | `trivy-fs.txt`, `trivy-fs.BEFORE-fix.txt` |
 | `pip-audit` | Python dependencies | **no known vulnerabilities** | same | `pip-audit.txt` |
 | `npm audit` (frontend, production) | JS dependencies | **0 vulnerabilities** | 2 moderate (`react-router` 6.x) | `npm-audit-frontend.txt`, `npm-audit-frontend.BEFORE-fix.txt` |
 | `npm audit` (e2e) | test tooling | 0 | 0 | `npm-audit-e2e.txt` |
