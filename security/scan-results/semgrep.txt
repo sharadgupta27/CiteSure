@@ -1,0 +1,57 @@
+               
+               
+┌─────────────┐
+│ Scan Status │
+└─────────────┘
+  Scanning 146 files tracked by git with 244 Code rules:
+                                                                                                                        
+  Language     Rules   Files          Origin      Rules                                                                 
+ ────────────────────────────        ───────────────────                                                                
+  python         151      99          Community     244                                                                 
+  ts              74      33                                                                                            
+  yaml            12       3                                                                                            
+  dockerfile       7       2                                                                                            
+                                                                                                                        
+                  
+                  
+┌────────────────┐
+│ 1 Code Finding │
+└────────────────┘
+                                     
+    /src/.github/workflows/deploy.yml
+    ❯❱ yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout
+          ❰❰ Blocking ❱❱
+          This GitHub Actions workflow file uses `workflow_run` and checks out code from the incoming pull   
+          request. When using `workflow_run`, the Action runs in the context of the target repository, which 
+          includes access to all repository secrets. Normally, this is safe because the Action only runs code
+          from the target repository, not the incoming PR. However, by checking out the incoming PR code,    
+          you're now using the incoming code for the rest of the action. You may be inadvertently executing  
+          arbitrary code from the incoming PR with access to repository secrets, which would let an attacker 
+          steal repository secrets. This normally happens by running build scripts (e.g., `npm build` and    
+          `make`) or dependency installation scripts (e.g., `python setup.py install`). Audit your workflow  
+          file to make sure no code from the incoming PR is executed. Please see                             
+          https://securitylab.github.com/research/github-actions-preventing-pwn-requests/ for additional     
+          mitigations.                                                                                       
+          Details: https://sg.run/A0p6                                                                       
+                                                                                                             
+           39┆ - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+           40┆   with:
+           41┆     ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+                
+                
+┌──────────────┐
+│ Scan Summary │
+└──────────────┘
+✅ Scan completed successfully.
+ • Findings: 1 (1 blocking)
+ • Rules run: 243
+ • Targets scanned: 137
+ • Parsed lines: ~100.0%
+ • Scan skipped: 
+   ◦ Files matching .semgrepignore patterns: 4
+ • Scan was limited to files tracked by git
+ • For a detailed list of skipped files and lines, run semgrep with the --verbose flag
+Ran 243 rules on 137 files: 1 finding.
+exit 0
+exit 0

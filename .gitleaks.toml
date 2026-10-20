@@ -1,0 +1,23 @@
+title = "CiteSure gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Dependencies, build output and clearly fake test values"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)dist/''',
+  '''(^|/)uploads/''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)uv\.lock$''',
+  '''(^|/)playwright-report/''',
+  '''(^|/)test-results/''',
+  '''(^|/)security/''',
+]
+regexes = [
+  '''dev-only-secret-change-me[\w-]*''',
+  '''test-secret-test-secret-test-secret''',
+  '''citesure-demo''',
+]

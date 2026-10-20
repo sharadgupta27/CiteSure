@@ -1,0 +1,6 @@
+Installed 29 packages in 1.01s
+No known vulnerabilities found
+Name             Skip Reason
+---------------- -------------------------------------------------------------------------------
+citesure-backend Dependency not found on PyPI and could not be audited: citesure-backend (1.0.0)
+exit 0

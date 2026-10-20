@@ -1,0 +1,205 @@
+Unable to find image 'semgrep/semgrep:latest' locally
+latest: Pulling from semgrep/semgrep
+9932b1cb51af: Pulling fs layer
+a0b8e5cb658d: Pulling fs layer
+8f428bb272ca: Pulling fs layer
+e940716c0337: Pulling fs layer
+24b778553847: Pulling fs layer
+82060dd11620: Pulling fs layer
+d0c1d894c237: Pulling fs layer
+c526866a7e98: Pulling fs layer
+0622ebfa378e: Pulling fs layer
+bd9ddc54bea9: Pulling fs layer
+9cc52d274c02: Pulling fs layer
+2f1218cb2f9f: Pulling fs layer
+043427ca7fd0: Pulling fs layer
+8f428bb272ca: Download complete
+e940716c0337: Download complete
+d0c1d894c237: Download complete
+82060dd11620: Download complete
+9932b1cb51af: Download complete
+2f1218cb2f9f: Download complete
+0622ebfa378e: Download complete
+9cc52d274c02: Download complete
+c526866a7e98: Download complete
+bd9ddc54bea9: Download complete
+043427ca7fd0: Download complete
+d0c1d894c237: Pull complete
+7ab45120d4ca: Download complete
+9cc52d274c02: Pull complete
+bd9ddc54bea9: Pull complete
+043427ca7fd0: Pull complete
+24b778553847: Download complete
+24b778553847: Pull complete
+a0b8e5cb658d: Download complete
+a0b8e5cb658d: Pull complete
+0622ebfa378e: Pull complete
+2f1218cb2f9f: Pull complete
+8f428bb272ca: Pull complete
+82060dd11620: Pull complete
+c526866a7e98: Pull complete
+e940716c0337: Pull complete
+9932b1cb51af: Pull complete
+Digest: sha256:529ee8a277ec8adc5b534d7c74eea0a47e9de21d62852b6ba7ac6ba9566845c3
+Status: Downloaded newer image for semgrep/semgrep:latest
+               
+               
+┌─────────────┐
+│ Scan Status │
+└─────────────┘
+  Scanning 146 files tracked by git with 244 Code rules:
+                                                                                                                        
+  Language     Rules   Files          Origin      Rules                                                                 
+ ────────────────────────────        ───────────────────                                                                
+  python         151      99          Community     244                                                                 
+  ts              74      33                                                                                            
+  yaml            12       3                                                                                            
+  dockerfile       7       2                                                                                            
+                                                                                                                        
+                    
+                    
+┌──────────────────┐
+│ 35 Code Findings │
+└──────────────────┘
+                                 
+    /src/.github/workflows/ci.yml
+    ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+          ❰❰ Blocking ❱❱
+          GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
+          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
+          actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
+          Details: https://sg.run/2LgAL                                                                       
+                                                                                                              
+           20┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           21┆ - uses: actions/setup-node@v4
+            ⋮┆----------------------------------------
+           35┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           36┆ - uses: astral-sh/setup-uv@v5
+            ⋮┆----------------------------------------
+           54┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           55┆ - uses: actions/setup-node@v4
+            ⋮┆----------------------------------------
+           71┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           72┆ - uses: astral-sh/setup-uv@v5
+            ⋮┆----------------------------------------
+           87┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           88┆ - uses: actions/setup-node@v4
+            ⋮┆----------------------------------------
+          104┆ uses: actions/upload-artifact@v4
+            ⋮┆----------------------------------------
+          118┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+          121┆ uses: gitleaks/gitleaks-action@v2
+            ⋮┆----------------------------------------
+          127┆ uses: aquasecurity/trivy-action@0.28.0
+            ⋮┆----------------------------------------
+          135┆ - uses: astral-sh/setup-uv@v5
+            ⋮┆----------------------------------------
+          139┆ - uses: actions/setup-node@v4
+            ⋮┆----------------------------------------
+          150┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+          151┆ - uses: docker/setup-buildx-action@v3
+            ⋮┆----------------------------------------
+          152┆ - uses: docker/build-push-action@v6
+            ⋮┆----------------------------------------
+          154┆ - uses: docker/build-push-action@v6
+                                     
+    /src/.github/workflows/deploy.yml
+    ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+          ❰❰ Blocking ❱❱
+          GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
+          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
+          actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
+          Details: https://sg.run/2LgAL                                                                       
+                                                                                                              
+           32┆ - uses: actions/checkout@v4
+   
+    ❯❱ yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout
+          ❰❰ Blocking ❱❱
+          This GitHub Actions workflow file uses `workflow_run` and checks out code from the incoming pull   
+          request. When using `workflow_run`, the Action runs in the context of the target repository, which 
+          includes access to all repository secrets. Normally, this is safe because the Action only runs code
+          from the target repository, not the incoming PR. However, by checking out the incoming PR code,    
+          you're now using the incoming code for the rest of the action. You may be inadvertently executing  
+          arbitrary code from the incoming PR with access to repository secrets, which would let an attacker 
+          steal repository secrets. This normally happens by running build scripts (e.g., `npm build` and    
+          `make`) or dependency installation scripts (e.g., `python setup.py install`). Audit your workflow  
+          file to make sure no code from the incoming PR is executed. Please see                             
+          https://securitylab.github.com/research/github-actions-preventing-pwn-requests/ for additional     
+          mitigations.                                                                                       
+          Details: https://sg.run/A0p6                                                                       
+                                                                                                             
+           32┆ - uses: actions/checkout@v4
+           33┆   with:
+           34┆     ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+   
+    ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+          ❰❰ Blocking ❱❱
+          GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
+          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
+          actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
+          Details: https://sg.run/2LgAL                                                                       
+                                                                                                              
+           35┆ - uses: docker/setup-buildx-action@v3
+            ⋮┆----------------------------------------
+           36┆ - uses: docker/login-action@v3
+            ⋮┆----------------------------------------
+           42┆ uses: docker/build-push-action@v6
+            ⋮┆----------------------------------------
+           56┆ uses: docker/build-push-action@v6
+            ⋮┆----------------------------------------
+           68┆ uses: appleboy/scp-action@v0.1.7
+            ⋮┆----------------------------------------
+           77┆ uses: appleboy/ssh-action@v1.2.0
+                                       
+    /src/.github/workflows/rag-eval.yml
+    ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+          ❰❰ Blocking ❱❱
+          GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
+          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
+          actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
+          Details: https://sg.run/2LgAL                                                                       
+                                                                                                              
+           45┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           46┆ - uses: astral-sh/setup-uv@v5
+            ⋮┆----------------------------------------
+           57┆ - uses: actions/upload-artifact@v4
+            ⋮┆----------------------------------------
+           82┆ - uses: actions/checkout@v4
+            ⋮┆----------------------------------------
+           83┆ - uses: astral-sh/setup-uv@v5
+            ⋮┆----------------------------------------
+           86┆ - uses: actions/cache@v4
+            ⋮┆----------------------------------------
+           96┆ - uses: actions/upload-artifact@v4
+
+                
+                
+┌──────────────┐
+│ Scan Summary │
+└──────────────┘
+✅ Scan completed successfully.
+ • Findings: 35 (35 blocking)
+ • Rules run: 243
+ • Targets scanned: 137
+ • Parsed lines: ~100.0%
+ • Scan skipped: 
+   ◦ Files matching .semgrepignore patterns: 4
+ • Scan was limited to files tracked by git
+ • For a detailed list of skipped files and lines, run semgrep with the --verbose flag
+Ran 243 rules on 137 files: 35 findings.
+
+📢 Too many findings? Try Semgrep Pro for more powerful queries and less noise.
+   See https://sg.run/false-positives.
+exit 0
