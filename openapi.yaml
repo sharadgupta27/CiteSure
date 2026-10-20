@@ -1,0 +1,1354 @@
+openapi: 3.1.0
+info:
+  title: CiteSure API
+  version: 1.0.0
+  summary: Grounded document Q&A with verified citations.
+  description: |
+    The API contract is the source of truth. The TypeScript client (`frontend/src/api/schema.d.ts`)
+    is generated from this file and `backend/tests/unit/test_contract.py` fails if the FastAPI
+    app drifts from it.
+
+    **Access control.** Every operation that returns document content (`/ask`, `/chunks/{id}`,
+    `/documents/{id}/file`, `/retrieval/explain`, ...) only sees collections the caller may read.
+    A resource the caller may not read is reported as `404`, never `403`, so its existence is not leaked.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: workspaces
+  - name: collections
+  - name: documents
+  - name: ask
+  - name: feedback
+  - name: evaluation
+  - name: ops
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: registerUser
+      summary: Create an account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: loginUser
+      summary: Log in and get a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: The current user
+      responses:
+        '200':
+          description: The current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /workspaces:
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaces
+      summary: Workspaces the caller belongs to
+      responses:
+        '200':
+          description: Workspaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Workspace' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [workspaces]
+      operationId: createWorkspace
+      summary: Create a workspace (the caller becomes its admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkspaceCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/members:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [workspaces]
+      operationId: listMembers
+      summary: Members of a workspace (admin only)
+      responses:
+        '200':
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Member' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [workspaces]
+      operationId: addMember
+      summary: Add an existing user to the workspace (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MemberAdd' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Member' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/groups:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [workspaces]
+      operationId: listGroups
+      summary: Groups in a workspace (admin only)
+      responses:
+        '200':
+          description: Groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Group' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [workspaces]
+      operationId: createGroup
+      summary: Create a group (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GroupCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Group' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /groups/{group_id}/members:
+    parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [workspaces]
+      operationId: addGroupMember
+      summary: Add a workspace member to a group (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GroupMemberAdd' }
+      responses:
+        '200':
+          description: The group with its updated membership
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Group' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /workspaces/{workspace_id}/collections:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [collections]
+      operationId: listCollections
+      summary: Collections the caller may read
+      responses:
+        '200':
+          description: Collections (only those the caller may read)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Collection' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [collections]
+      operationId: createCollection
+      summary: Create a collection (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CollectionCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Collection' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /collections/{collection_id}:
+    parameters:
+      - $ref: '#/components/parameters/CollectionId'
+    patch:
+      tags: [collections]
+      operationId: updateCollection
+      summary: Rename a collection or change who can read it (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CollectionUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Collection' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [collections]
+      operationId: deleteCollection
+      summary: Delete a collection with all its documents, chunks and files (admin only)
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /collections/{collection_id}/documents:
+    parameters:
+      - $ref: '#/components/parameters/CollectionId'
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      summary: Documents in a collection
+      responses:
+        '200':
+          description: Documents with their ingestion status
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      summary: Upload a document (admin only). Ingestion runs in the background.
+      description: |
+        The file type is detected from magic bytes, not from the filename or the client's MIME type.
+        Supported: PDF, DOCX, Markdown, HTML. Maximum size is set by `MAX_UPLOAD_MB` (default 20).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '202':
+          description: Accepted; the document is queued for ingestion
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMedia' }
+  /documents/{document_id}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: getDocument
+      summary: Document status and metadata
+      responses:
+        '200':
+          description: The document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      summary: Delete a document, its chunks, embeddings and stored file (admin only)
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{document_id}/reindex:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [documents]
+      operationId: reindexDocument
+      summary: Re-run ingestion for a document (admin only)
+      responses:
+        '202':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{document_id}/file:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: getDocumentFile
+      summary: The original uploaded file (ACL-checked)
+      responses:
+        '200':
+          description: The original bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{document_id}/chunks:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [documents]
+      operationId: listDocumentChunks
+      summary: All chunks of a document in reading order (ACL-checked)
+      responses:
+        '200':
+          description: Chunks
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Chunk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /chunks/{chunk_id}:
+    parameters:
+      - name: chunk_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [documents]
+      operationId: getChunk
+      summary: One chunk with its location (ACL-checked)
+      responses:
+        '200':
+          description: The chunk
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Chunk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /ask:
+    post:
+      tags: [ask]
+      operationId: ask
+      summary: Ask a question and get a verified answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AskRequest' }
+      responses:
+        '200':
+          description: A verified answer, or a refusal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Answer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /ask/stream:
+    post:
+      tags: [ask]
+      operationId: askStream
+      summary: The same as /ask, as Server-Sent Events
+      description: |
+        Events, in order: one or more `stage` events (`retrieving`, `generating`, `verifying`),
+        then `token` events carrying pieces of the **verified** answer text, then one `final` event
+        whose data is an `Answer`. Unverified text is never streamed. If something fails after the
+        stream has started, a single `error` event (data: `Error`) ends the stream. Failures before the
+        first event are ordinary HTTP errors. Every `data:` line is JSON.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AskRequest' }
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/StreamEvent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /threads:
+    get:
+      tags: [ask]
+      operationId: listThreads
+      summary: The caller's question history
+      parameters:
+        - name: workspace_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Threads, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Thread' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /threads/{thread_id}:
+    parameters:
+      - name: thread_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [ask]
+      operationId: getThread
+      summary: A thread with its answers
+      responses:
+        '200':
+          description: The thread
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ThreadDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /answers/{answer_id}:
+    parameters:
+      - $ref: '#/components/parameters/AnswerId'
+    get:
+      tags: [ask]
+      operationId: getAnswer
+      summary: A stored answer (own answers only; admins see all in their workspace)
+      responses:
+        '200':
+          description: The answer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Answer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /answers/{answer_id}/feedback:
+    parameters:
+      - $ref: '#/components/parameters/AnswerId'
+    post:
+      tags: [feedback]
+      operationId: createFeedback
+      summary: Thumbs up/down with an optional comment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeedbackCreate' }
+      responses:
+        '201':
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Feedback' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/feedback:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [feedback]
+      operationId: listFeedback
+      summary: The feedback queue (admin only)
+      responses:
+        '200':
+          description: Feedback, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FeedbackItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /workspaces/{workspace_id}/golden-questions:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [evaluation]
+      operationId: listGoldenQuestions
+      summary: The golden evaluation set (admin only)
+      responses:
+        '200':
+          description: Golden questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/GoldenQuestion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [evaluation]
+      operationId: createGoldenQuestion
+      summary: Add a golden question (admin only; a reason is required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GoldenQuestionCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoldenQuestion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/golden-questions/from-feedback/{feedback_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: feedback_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [evaluation]
+      operationId: promoteFeedback
+      summary: Turn a feedback entry into a golden question (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromoteFeedbackRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoldenQuestion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /golden-questions/{golden_id}:
+    parameters:
+      - name: golden_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [evaluation]
+      operationId: updateGoldenQuestion
+      summary: Edit a golden question (admin only; a reason is required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GoldenQuestionUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GoldenQuestion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [evaluation]
+      operationId: deleteGoldenQuestion
+      summary: Remove a golden question (admin only)
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/eval-runs:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [evaluation]
+      operationId: listEvalRuns
+      summary: Evaluation runs, newest first (admin only)
+      responses:
+        '200':
+          description: Runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EvalRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [evaluation]
+      operationId: createEvalRun
+      summary: Queue an evaluation run over the golden set (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EvalRunCreate' }
+      responses:
+        '202':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvalRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /eval-runs/compare:
+    get:
+      tags: [evaluation]
+      operationId: compareEvalRuns
+      summary: Metrics of two runs side by side (admin only)
+      parameters:
+        - name: base
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: head
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The comparison
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvalCompare' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /eval-runs/{run_id}:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [evaluation]
+      operationId: getEvalRun
+      summary: One run with per-question results (admin only)
+      responses:
+        '200':
+          description: The run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvalRunDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /retrieval/explain:
+    get:
+      tags: [evaluation]
+      operationId: explainRetrieval
+      summary: Candidates and scores at every retrieval stage
+      description: |
+        Any workspace member may call it, and it shows only chunks the caller's ACL allows, so it grants no extra access.
+        Used by admins to debug retrieval and by the MCP server's `explain_retrieval` tool (a plain-member service user).
+      parameters:
+        - name: workspace_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: query
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 2000 }
+        - name: retrieval_mode
+          in: query
+          required: false
+          schema: { type: string, enum: [vector, hybrid], default: hybrid }
+        - name: rerank
+          in: query
+          required: false
+          schema: { type: boolean, default: true }
+      responses:
+        '200':
+          description: Retrieval trace
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RetrievalExplain' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /healthz:
+    servers: [{ url: / }]
+    get:
+      tags: [ops]
+      operationId: healthz
+      summary: Liveness and database check
+      security: []
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+  /metrics:
+    servers: [{ url: / }]
+    get:
+      tags: [ops]
+      operationId: metrics
+      summary: Prometheus metrics
+      security: []
+      responses:
+        '200':
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema: { type: string }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CollectionId:
+      name: collection_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AnswerId:
+      name: answer_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: The caller is not allowed to do this
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found, or not visible to the caller
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: The resource already exists
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PayloadTooLarge:
+      description: Upload exceeds the size limit
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UnsupportedMedia:
+      description: File type is not supported (checked by magic bytes)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: The request body or parameters are invalid
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, detail]
+      properties:
+        code: { type: string, examples: [not_found] }
+        detail: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 128 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    User:
+      type: object
+      required: [id, email, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        created_at: { type: string, format: date-time }
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, user]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [bearer] }
+        user: { $ref: '#/components/schemas/User' }
+
+    Role:
+      type: string
+      enum: [admin, member]
+    Workspace:
+      type: object
+      required: [id, name, role, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        created_at: { type: string, format: date-time }
+    WorkspaceCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+    Member:
+      type: object
+      required: [user_id, email, role]
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+    MemberAdd:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+    Group:
+      type: object
+      required: [id, workspace_id, name, member_ids]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        member_ids:
+          type: array
+          items: { type: string, format: uuid }
+    GroupCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+    GroupMemberAdd:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    Visibility:
+      type: string
+      enum: [workspace, groups]
+    Collection:
+      type: object
+      required: [id, workspace_id, name, visibility, group_ids, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        visibility: { $ref: '#/components/schemas/Visibility' }
+        group_ids:
+          type: array
+          items: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    CollectionCreate:
+      type: object
+      required: [name, visibility, group_ids]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        visibility: { $ref: '#/components/schemas/Visibility' }
+        group_ids:
+          type: array
+          items: { type: string, format: uuid }
+    CollectionUpdate:
+      type: object
+      properties:
+        name: { type: [string, 'null'], minLength: 1, maxLength: 100 }
+        visibility:
+          oneOf:
+            - $ref: '#/components/schemas/Visibility'
+            - type: 'null'
+        group_ids:
+          type: [array, 'null']
+          items: { type: string, format: uuid }
+
+    DocumentStatus:
+      type: string
+      enum: [queued, parsing, embedding, ready, failed]
+    Document:
+      type: object
+      required: [id, collection_id, title, filename, mime, sha256, status, page_count, chunk_count, error, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        collection_id: { type: string, format: uuid }
+        title: { type: string }
+        filename: { type: string }
+        mime: { type: string }
+        sha256: { type: string }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        page_count: { type: [integer, 'null'] }
+        chunk_count: { type: integer }
+        error: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    Chunk:
+      type: object
+      required: [id, document_id, document_title, collection_id, ord, text, heading_path, page_start, page_end, char_start, char_end]
+      properties:
+        id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        document_title: { type: string }
+        collection_id: { type: string, format: uuid }
+        ord: { type: integer }
+        text: { type: string }
+        heading_path:
+          type: array
+          items: { type: string }
+        page_start: { type: [integer, 'null'] }
+        page_end: { type: [integer, 'null'] }
+        char_start: { type: integer, description: Offset of the chunk in the normalised document text }
+        char_end: { type: integer }
+
+    PipelineConfig:
+      type: object
+      required: [retrieval_mode, rerank, candidate_k, top_k]
+      properties:
+        retrieval_mode: { type: string, enum: [vector, hybrid] }
+        rerank: { type: boolean }
+        candidate_k: { type: integer, minimum: 1, maximum: 100, description: Candidates fetched per retriever }
+        top_k: { type: integer, minimum: 1, maximum: 20, description: Chunks given to the model }
+    AskRequest:
+      type: object
+      required: [workspace_id, question]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        question: { type: string, minLength: 3, maxLength: 1000 }
+        thread_id:
+          type: [string, 'null']
+          format: uuid
+        config:
+          description: Admin-only override of the pipeline configuration (403 for non-admins)
+          oneOf:
+            - $ref: '#/components/schemas/PipelineConfig'
+            - type: 'null'
+
+    Citation:
+      type: object
+      required: [chunk_id, document_id, document_title, quote, quote_start, quote_end, heading_path, page_start, page_end]
+      properties:
+        chunk_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        document_title: { type: string }
+        quote: { type: string, description: The words the model quoted from the chunk }
+        quote_start: { type: integer, description: Start of the best match inside Chunk.text }
+        quote_end: { type: integer }
+        heading_path:
+          type: array
+          items: { type: string }
+        page_start: { type: [integer, 'null'] }
+        page_end: { type: [integer, 'null'] }
+    Entailment:
+      type: string
+      enum: [supported, partial, unsupported]
+    Verification:
+      type: object
+      required: [quote_match, entailment]
+      properties:
+        quote_match: { type: number, minimum: 0, maximum: 1 }
+        entailment: { $ref: '#/components/schemas/Entailment' }
+    Claim:
+      type: object
+      required: [text, citations, verified, verification]
+      properties:
+        text: { type: string }
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/Citation' }
+        verified: { type: boolean }
+        verification: { $ref: '#/components/schemas/Verification' }
+    ClosestSource:
+      type: object
+      required: [document_id, document_title, chunk_id]
+      properties:
+        document_id: { type: string, format: uuid }
+        document_title: { type: string }
+        chunk_id: { type: string, format: uuid }
+    Refusal:
+      type: object
+      required: [reason, message, closest_sources]
+      properties:
+        reason: { type: string, enum: [no_sources, no_supported_claims] }
+        message: { type: string }
+        closest_sources:
+          type: array
+          items: { $ref: '#/components/schemas/ClosestSource' }
+    AnswerStatus:
+      type: string
+      enum: [answered, refused]
+    Answer:
+      type: object
+      required: [id, thread_id, question, status, claims, refusal, dropped_claims, latency_ms_by_stage, tokens_in, tokens_out, cost_usd, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        thread_id: { type: string, format: uuid }
+        question: { type: string }
+        status: { $ref: '#/components/schemas/AnswerStatus' }
+        claims:
+          type: array
+          items: { $ref: '#/components/schemas/Claim' }
+        refusal:
+          oneOf:
+            - $ref: '#/components/schemas/Refusal'
+            - type: 'null'
+        dropped_claims: { type: integer, description: Claims the model drafted that failed verification }
+        latency_ms_by_stage:
+          type: object
+          additionalProperties: { type: number }
+        tokens_in: { type: integer }
+        tokens_out: { type: integer }
+        cost_usd: { type: number }
+        created_at: { type: string, format: date-time }
+    StreamEvent:
+      type: object
+      description: One Server-Sent Event. `event` is the SSE event name, `data` its JSON payload.
+      required: [event, data]
+      properties:
+        event: { type: string, enum: [stage, token, final, error] }
+        data:
+          description: A stage name for `stage`, a text fragment for `token`, an `Answer` for `final`, an `Error` for `error`.
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/Answer'
+            - $ref: '#/components/schemas/Error'
+    Thread:
+      type: object
+      required: [id, workspace_id, title, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        title: { type: string }
+        created_at: { type: string, format: date-time }
+    ThreadDetail:
+      type: object
+      required: [id, workspace_id, title, created_at, answers]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        title: { type: string }
+        created_at: { type: string, format: date-time }
+        answers:
+          type: array
+          items: { $ref: '#/components/schemas/Answer' }
+
+    FeedbackCreate:
+      type: object
+      required: [rating, comment]
+      properties:
+        rating: { type: integer, enum: [-1, 1] }
+        comment: { type: [string, 'null'], maxLength: 2000 }
+    Feedback:
+      type: object
+      required: [id, answer_id, user_id, rating, comment, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        answer_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        rating: { type: integer, enum: [-1, 1] }
+        comment: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    FeedbackItem:
+      type: object
+      required: [id, answer_id, user_id, rating, comment, created_at, question, answer_status, promoted]
+      properties:
+        id: { type: string, format: uuid }
+        answer_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        rating: { type: integer, enum: [-1, 1] }
+        comment: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        question: { type: string }
+        answer_status: { $ref: '#/components/schemas/AnswerStatus' }
+        promoted: { type: boolean }
+
+    ExpectedQuote:
+      type: object
+      required: [document, quote]
+      properties:
+        document: { type: string, description: Filename of the source document }
+        quote: { type: string }
+    GoldenSource:
+      type: string
+      enum: [manual, feedback]
+    GoldenQuestion:
+      type: object
+      required: [id, workspace_id, question, expected_answer, expected_quotes, answerable, ask_as, source, tags, reason, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        question: { type: string }
+        expected_answer: { type: [string, 'null'] }
+        expected_quotes:
+          type: array
+          items: { $ref: '#/components/schemas/ExpectedQuote' }
+        answerable: { type: boolean }
+        ask_as:
+          type: [string, 'null']
+          description: Name of the group the asking persona belongs to (for example `hr`); null means a plain member.
+        source: { $ref: '#/components/schemas/GoldenSource' }
+        tags:
+          type: array
+          items: { type: string }
+        reason: { type: string }
+        created_at: { type: string, format: date-time }
+    GoldenQuestionCreate:
+      type: object
+      required: [question, expected_answer, expected_quotes, answerable, ask_as, tags, reason]
+      properties:
+        question: { type: string, minLength: 3 }
+        expected_answer: { type: [string, 'null'] }
+        expected_quotes:
+          type: array
+          items: { $ref: '#/components/schemas/ExpectedQuote' }
+        answerable: { type: boolean }
+        ask_as: { type: [string, 'null'] }
+        tags:
+          type: array
+          items: { type: string }
+        reason: { type: string, minLength: 3, description: Why this entry is added or changed }
+    GoldenQuestionUpdate:
+      type: object
+      required: [reason]
+      properties:
+        question: { type: [string, 'null'] }
+        expected_answer: { type: [string, 'null'] }
+        expected_quotes:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/ExpectedQuote' }
+        answerable: { type: [boolean, 'null'] }
+        ask_as: { type: [string, 'null'] }
+        tags:
+          type: [array, 'null']
+          items: { type: string }
+        reason: { type: string, minLength: 3 }
+    PromoteFeedbackRequest:
+      type: object
+      required: [answerable, expected_answer, expected_quotes, ask_as, reason]
+      properties:
+        answerable: { type: boolean }
+        expected_answer: { type: [string, 'null'] }
+        expected_quotes:
+          type: array
+          items: { $ref: '#/components/schemas/ExpectedQuote' }
+        ask_as: { type: [string, 'null'] }
+        reason: { type: string, minLength: 3 }
+
+    EvalRunStatus:
+      type: string
+      enum: [queued, running, done, failed]
+    EvalMetrics:
+      type: object
+      required: [n_questions, recall_at_k, mrr, correctness, faithfulness, citation_precision, citation_recall, refusal_accuracy, restricted_refusal_accuracy, answerable_refusal_rate]
+      properties:
+        n_questions: { type: integer }
+        recall_at_k: { type: number }
+        mrr: { type: number }
+        correctness: { type: number }
+        faithfulness: { type: number }
+        citation_precision: { type: number }
+        citation_recall: { type: number }
+        refusal_accuracy: { type: number }
+        restricted_refusal_accuracy: { type: number }
+        answerable_refusal_rate: { type: number }
+    EvalRunCreate:
+      type: object
+      required: [name, config]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        config: { $ref: '#/components/schemas/PipelineConfig' }
+    EvalRun:
+      type: object
+      required: [id, workspace_id, name, config, status, metrics, error, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        config: { $ref: '#/components/schemas/PipelineConfig' }
+        status: { $ref: '#/components/schemas/EvalRunStatus' }
+        metrics:
+          oneOf:
+            - $ref: '#/components/schemas/EvalMetrics'
+            - type: 'null'
+        error: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    EvalItem:
+      type: object
+      required: [golden_question_id, question, answerable, answer_status, hit_rank, scores]
+      properties:
+        golden_question_id: { type: string, format: uuid }
+        question: { type: string }
+        answerable: { type: boolean }
+        answer_status: { $ref: '#/components/schemas/AnswerStatus' }
+        hit_rank:
+          type: [integer, 'null']
+          description: Rank (1-based) of the first retrieved chunk that contains an expected quote
+        scores:
+          type: object
+          additionalProperties: { type: number }
+    EvalRunDetail:
+      type: object
+      required: [id, workspace_id, name, config, status, metrics, error, created_at, items]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        config: { $ref: '#/components/schemas/PipelineConfig' }
+        status: { $ref: '#/components/schemas/EvalRunStatus' }
+        metrics:
+          oneOf:
+            - $ref: '#/components/schemas/EvalMetrics'
+            - type: 'null'
+        error: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/EvalItem' }
+    EvalCompare:
+      type: object
+      required: [base, head, deltas]
+      properties:
+        base: { $ref: '#/components/schemas/EvalRun' }
+        head: { $ref: '#/components/schemas/EvalRun' }
+        deltas:
+          type: object
+          description: head minus base for every metric
+          additionalProperties: { type: number }
+
+    Candidate:
+      type: object
+      required: [chunk_id, document_title, rank, score, snippet]
+      properties:
+        chunk_id: { type: string, format: uuid }
+        document_title: { type: string }
+        rank: { type: integer }
+        score: { type: number }
+        snippet: { type: string }
+    RetrievalExplain:
+      type: object
+      required: [query, config, allowed_collections, vector, fts, fused, reranked]
+      properties:
+        query: { type: string }
+        config: { $ref: '#/components/schemas/PipelineConfig' }
+        allowed_collections: { type: integer, description: How many collections the ACL allowed }
+        vector:
+          type: array
+          items: { $ref: '#/components/schemas/Candidate' }
+        fts:
+          type: array
+          items: { $ref: '#/components/schemas/Candidate' }
+        fused:
+          type: array
+          items: { $ref: '#/components/schemas/Candidate' }
+        reranked:
+          type: array
+          items: { $ref: '#/components/schemas/Candidate' }
+
+    Health:
+      type: object
+      required: [status, database]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        database: { type: boolean }

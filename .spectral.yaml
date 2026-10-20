@@ -1,0 +1,10 @@
+extends: ["spectral:oas"]
+rules:
+  # Our schemas use JSON-Schema 2020-12 `examples` arrays, and several operations
+  # intentionally have no tags description.
+  operation-tag-defined: error
+  operation-operationId: error
+  operation-description: off
+  info-contact: off
+  info-description: warn
+  oas3-unused-component: warn
