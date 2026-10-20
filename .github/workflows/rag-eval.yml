@@ -1,0 +1,98 @@
+name: RAG evaluation
+
+# Pull requests: deterministic run with the FAKE LLM and embedder (free, reproducible). A change to retrieval,
+# chunking, prompts or verification must not lower the baseline metrics, and restricted questions must NEVER be answered.
+# Nightly: the same golden set with the real models (needs the ANTHROPIC_API_KEY secret), then the nightly agent
+# diffs the run against the previous one and opens an issue for regressions.
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/rag/**"
+      - "backend/app/services/**"
+      - "backend/app/llm/**"
+      - "backend/app/embeddings/**"
+      - "backend/evals/**"
+      - "corpus/**"
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  fake-providers:
+    name: Deterministic evaluation (fake providers)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: citesure, POSTGRES_PASSWORD: citesure, POSTGRES_DB: citesure }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U citesure" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://citesure:citesure@localhost:5432/citesure
+      LLM_PROVIDER: fake
+      EMBEDDING_PROVIDER: fake
+      RERANKER: lexical
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with: { enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv run alembic upgrade head
+      - name: Experiment matrix
+        run: uv run python -m app.evals.run --matrix evals/experiments.yaml --out eval-results.json --md eval-results.md
+      - name: Compare with the committed baseline
+        run: uv run python evals/check_regression.py eval-results.json evals/baseline.json --config hybrid+rerank
+      - name: Show the table in the job summary
+        if: always()
+        run: cat eval-results.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: eval-results, path: backend/eval-results.* }
+
+  real-models:
+    name: Nightly evaluation (real models)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: citesure, POSTGRES_PASSWORD: citesure, POSTGRES_DB: citesure }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U citesure" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://citesure:citesure@localhost:5432/citesure
+      LLM_PROVIDER: anthropic
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      EMBEDDING_PROVIDER: fastembed
+      RERANKER: cross-encoder
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with: { enable-cache: true }
+      - run: uv sync --frozen --extra ml
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with: { path: ~/.cache/fastembed, key: fastembed-models-v1 }
+      - run: uv run alembic upgrade head
+      - name: Evaluate with real models
+        run: uv run python -m app.evals.run --matrix evals/experiments.yaml --out eval-results.json --md eval-results.md
+      - name: Nightly agent - diff against the previous run and open an issue on regressions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: uv run --no-project --with httpx python ../custom-agent/agent.py --results eval-results.json --previous evals/last-nightly.json --config hybrid+rerank --open-issue
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: eval-results-real, path: backend/eval-results.* }

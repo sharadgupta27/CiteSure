@@ -1,0 +1,74 @@
+{
+  "vector-only": {
+    "n_questions": 40,
+    "recall_at_k": 1.0,
+    "mrr": 0.9111,
+    "correctness": 0.8,
+    "faithfulness": 1.0,
+    "citation_precision": 0.9333,
+    "citation_recall": 0.9333,
+    "refusal_accuracy": 0.9,
+    "restricted_refusal_accuracy": 1.0,
+    "answerable_refusal_rate": 0.0667
+  },
+  "vector+rerank": {
+    "n_questions": 40,
+    "recall_at_k": 1.0,
+    "mrr": 0.9833,
+    "correctness": 0.8,
+    "faithfulness": 1.0,
+    "citation_precision": 0.9062,
+    "citation_recall": 0.9667,
+    "refusal_accuracy": 0.9,
+    "restricted_refusal_accuracy": 1.0,
+    "answerable_refusal_rate": 0.0333
+  },
+  "hybrid": {
+    "n_questions": 40,
+    "recall_at_k": 1.0,
+    "mrr": 0.9417,
+    "correctness": 0.8,
+    "faithfulness": 1.0,
+    "citation_precision": 0.9333,
+    "citation_recall": 0.9333,
+    "refusal_accuracy": 0.9,
+    "restricted_refusal_accuracy": 1.0,
+    "answerable_refusal_rate": 0.0667
+  },
+  "hybrid+rerank": {
+    "n_questions": 40,
+    "recall_at_k": 1.0,
+    "mrr": 0.9833,
+    "correctness": 0.8,
+    "faithfulness": 1.0,
+    "citation_precision": 0.9062,
+    "citation_recall": 0.9667,
+    "refusal_accuracy": 0.9,
+    "restricted_refusal_accuracy": 1.0,
+    "answerable_refusal_rate": 0.0333
+  },
+  "hybrid+rerank/chunk-64": {
+    "n_questions": 40,
+    "recall_at_k": 1.0,
+    "mrr": 0.9833,
+    "correctness": 0.7667,
+    "faithfulness": 1.0,
+    "citation_precision": 0.8438,
+    "citation_recall": 0.9,
+    "refusal_accuracy": 0.9,
+    "restricted_refusal_accuracy": 1.0,
+    "answerable_refusal_rate": 0.1
+  },
+  "hybrid+rerank/chunk-128": {
+    "n_questions": 40,
+    "recall_at_k": 1.0,
+    "mrr": 0.9667,
+    "correctness": 0.8,
+    "faithfulness": 1.0,
+    "citation_precision": 0.875,
+    "citation_recall": 0.9333,
+    "refusal_accuracy": 0.9,
+    "restricted_refusal_accuracy": 1.0,
+    "answerable_refusal_rate": 0.0667
+  }
+}

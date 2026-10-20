@@ -1,0 +1,26 @@
+# The experiment matrix. Every row is a configuration, not a code fork (see docs/rag-design.md).
+# Defaults for omitted keys come from the environment (CANDIDATE_K, TOP_K, CHUNK_TOKENS).
+# Run:  cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml
+experiments:
+  - name: vector-only
+    retrieval_mode: vector
+    rerank: false
+  - name: vector+rerank
+    retrieval_mode: vector
+    rerank: true
+  - name: hybrid
+    retrieval_mode: hybrid
+    rerank: false
+  - name: hybrid+rerank
+    retrieval_mode: hybrid
+    rerank: true
+  # Chunk size. The demo handbook pages are short (about 150 tokens each), so 256 and 800 would both be a single
+  # chunk per page, identical to 400. These sizes actually split pages; on a long-document corpus use 256/400/800.
+  - name: hybrid+rerank/chunk-64
+    retrieval_mode: hybrid
+    rerank: true
+    chunk_tokens: 64
+  - name: hybrid+rerank/chunk-128
+    retrieval_mode: hybrid
+    rerank: true
+    chunk_tokens: 128
