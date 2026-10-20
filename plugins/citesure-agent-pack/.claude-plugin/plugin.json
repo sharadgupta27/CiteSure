@@ -1,0 +1,8 @@
+{
+  "name": "citesure-agent-pack",
+  "version": "1.0.0",
+  "description": "Skills, subagents, guardrail hooks and a scoped MCP server for working on CiteSure (verified-citation RAG) with a coding agent.",
+  "author": { "name": "CiteSure maintainers" },
+  "license": "MIT",
+  "keywords": ["rag", "evaluation", "mcp", "guardrails", "citations"]
+}

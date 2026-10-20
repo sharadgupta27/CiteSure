@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "citesure": {
+      "command": "uv",
+      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}/mcp-server", "--quiet", "python", "${CLAUDE_PLUGIN_ROOT}/mcp-server/server.py"],
+      "env": {
+        "CITESURE_URL": "${CITESURE_URL:-http://localhost:8000}",
+        "CITESURE_MCP_EMAIL": "${CITESURE_MCP_EMAIL:-agent@acme.example}",
+        "CITESURE_MCP_PASSWORD": "${CITESURE_MCP_PASSWORD}"
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(uv run python -m app.evals.run:*)",
+      "Bash(python corpus/validate_golden.py)",
+      "Bash(python agent-hooks/check_golden_append_only.py:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run gen:api:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "mcp__citesure__list_collections",
+      "mcp__citesure__search_corpus",
+      "mcp__citesure__get_chunk",
+      "mcp__citesure__explain_retrieval"
+    ],
+    "ask": [
+      "mcp__citesure__ask",
+      "mcp__citesure__run_eval",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(docker compose:*)",
+      "Bash(alembic:*)",
+      "Bash(uv run alembic:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./backend/.env*)",
+      "Read(./corpus/raw/**)",
+      "Bash(git push --force:*)",
+      "Bash(rm -rf:*)",
+      "Bash(aws:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": ["citesure"],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/agent-hooks/guard.py\"", "timeout": 15 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/agent-hooks/format_on_save.py\"", "timeout": 120 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/agent-hooks/stop_tests.py\"", "timeout": 600 }
+        ]
+      }
+    ]
+  }
+}

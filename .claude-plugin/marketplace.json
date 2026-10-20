@@ -1,0 +1,11 @@
+{
+  "name": "citesure",
+  "owner": { "name": "CiteSure maintainers" },
+  "plugins": [
+    {
+      "name": "citesure-agent-pack",
+      "source": "./plugins/citesure-agent-pack",
+      "description": "CiteSure skills, subagents, guardrail hooks and a scoped MCP server."
+    }
+  ]
+}
