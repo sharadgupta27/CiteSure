@@ -42,7 +42,7 @@ Read this carefully, because it is easy to overclaim:
 - **The GitHub workflows were not run on GitHub.** Every command inside them was run locally.
 - **No real-model evaluation** (above).
 - **No demo video**, and the live "Claude Code picks the skill by itself" session was not recorded (it is marked "to rehearse").
-- **Nothing was committed.** The agent that built this was told not to, and did not.
+- **Commits came last.** The agent was told not to commit and waited until asked; the history has one commit per phase, made after the fact by splitting files, so early commits do not build alone.
 - **A human has not reviewed** the AI-written security audit or the workflows yet. The log (`docs/ai-workflow.md`) has empty "human review" cells on purpose.
 
 Why list these? Because a reader, an interviewer, or you in six months should be able to trust every *other* sentence.

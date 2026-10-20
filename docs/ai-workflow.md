@@ -19,7 +19,7 @@ This project was built with a coding agent (Claude Code) working from written in
 3. **Contract first.** `openapi.yaml` was written before the frontend and backend; a drift test keeps them honest.
 4. **Fakes everywhere in tests.** `FakeProvider` + `FakeEmbedder` make tests deterministic and free.
 5. **Run it, don't assume it.** Every task ends with tests actually executed; failures are fixed, not hidden.
-6. **Human review points.** The human reviews: dependency additions, schema/ACL/CI changes, and every diff before commit. The agent never commits or deploys on its own.
+6. **Human review points.** The human reviews: dependency additions, schema/ACL/CI changes, and every diff before commit. The agent never commits or deploys on its own: the per-phase commits were made only on the owner's explicit request, after the work was finished.
 
 ## Log
 

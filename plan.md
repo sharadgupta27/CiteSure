@@ -2,7 +2,7 @@
 
 > Grounded document Q&A with verified citations: enterprise RAG.
 > Working name: **CiteSure** ("answers you can verify"). Rubric: [docs/course/final-project-rubric.md](docs/course/final-project-rubric.md). Module 5 deliverable: [docs/course/module5-requirements.md](docs/course/module5-requirements.md).
-> Status legend (added during implementation): `[x]` done, `[~]` partly done, `[ ]` not done; notes after a dash record deviations. Nothing was committed or deployed by the agent, and the real-model evaluation was not run (no API key).
+> Status legend (added during implementation): `[x]` done, `[~]` partly done, `[ ]` not done; notes after a dash record deviations. The agent committed one commit per phase only after the owner asked; nothing was deployed, and the real-model evaluation was not run (no API key).
 
 ---
 
@@ -227,7 +227,7 @@ substack/
 Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chapter draft. Effort assumes part-time work (about 10 h/week).
 
 ### Phase 0: Spec, Corpus & Agent Context (≈ 0.5 week)
-- [ ] `git init`, `.gitignore`, license — **NOT DONE**: `.gitignore` and licence exist; no repository was initialised (the agent does not commit; the owner runs `git init`)
+- [x] `git init`, `.gitignore`, license — repository exists; one commit per phase was made at the owner's request (earlier phase commits do not build alone: files were split by directory afterwards)
 - [x] `product-spec.md`: personas (employee, admin), user stories, acceptance criteria
 - [x] Choose the domain and corpus; write a fetch script in `corpus/` and record the license
 - [x] **Write 40 golden questions before writing any RAG code**: 30 answerable (with expected source pages), 10 unanswerable or permission-restricted
