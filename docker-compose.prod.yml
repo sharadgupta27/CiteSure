@@ -1,0 +1,104 @@
+# Production stack for ONE small VM (AWS EC2 t3.medium): Caddy (HTTPS) -> frontend/nginx -> api -> Postgres.
+# Images come from GHCR (built by .github/workflows/deploy.yml). Secrets live in /opt/citesure/.env on the server.
+#
+#   export IMAGE_PREFIX=ghcr.io/<owner>/<repo> TAG=<git sha or latest>
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml run --rm migrate
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Nothing but Caddy (80/443) is published. The database is only reachable on the internal network.
+
+x-backend-env: &backend-env
+  ENV: prod
+  DATABASE_URL: postgresql+asyncpg://citesure:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/citesure
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (32+ random characters)}
+  CORS_ORIGINS: https://${DOMAIN:?set DOMAIN in .env}
+  TRUST_PROXY_HEADERS: "true"
+  LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANSWER_MODEL: ${ANSWER_MODEL:-claude-sonnet-5-5}
+  VERIFY_MODEL: ${VERIFY_MODEL:-claude-haiku-5-5}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fastembed}
+  RERANKER: ${RERANKER:-cross-encoder}
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+  STORAGE_PATH: /data/uploads
+  S3_BUCKET: ${S3_BUCKET:-}
+  UPLOADS_ENABLED: ${UPLOADS_ENABLED:-false}   # the public demo ships a pre-ingested corpus; uploads stay off
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  SEED_PASSWORD: ${SEED_PASSWORD:-}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: citesure
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: citesure
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citesure -d citesure"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}/backend:${TAG:-latest}
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    image: ${IMAGE_PREFIX}/backend:${TAG:-latest}
+    restart: unless-stopped
+    environment: *backend-env
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      db: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { memory: 1536M }
+
+  worker:
+    image: ${IMAGE_PREFIX}/backend:${TAG:-latest}
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-env
+    volumes: [uploads:/data/uploads]
+    healthcheck:
+      # The worker serves no HTTP API; its Prometheus endpoint proves the process is alive (the image default probes :8000).
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9100/metrics', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+    depends_on:
+      db: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { memory: 1536M }
+
+  frontend:
+    image: ${IMAGE_PREFIX}/frontend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend, api]
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

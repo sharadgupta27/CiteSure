@@ -1,0 +1,89 @@
+# Development stack:  docker compose up --build
+#   frontend  http://localhost:5173   (nginx serving the built React app, proxying /api to the API)
+#   api       http://localhost:8000   (docs at /docs)
+#   db        localhost:5432          (Postgres 16 + pgvector)
+# First run:  docker compose run --rm api python -m app.seed      (demo users, collections, 20 documents)
+#
+# Optional: WITH_ML=true docker compose build   -> real local embeddings (fastembed) baked into the image.
+
+x-backend-env: &backend-env
+  ENV: dev
+  DATABASE_URL: postgresql+asyncpg://citesure:citesure@db:5432/citesure
+  JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-0000}
+  CORS_ORIGINS: http://localhost:5173
+  LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANSWER_MODEL: ${ANSWER_MODEL:-claude-sonnet-5-5}
+  VERIFY_MODEL: ${VERIFY_MODEL:-claude-haiku-5-5}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fake}
+  RERANKER: ${RERANKER:-lexical}
+  STORAGE_PATH: /data/uploads
+  SEED_PASSWORD: ${SEED_PASSWORD:-citesure-demo}
+  TRUST_PROXY_HEADERS: "true"
+
+x-backend-build: &backend-build
+  context: .
+  dockerfile: backend/Dockerfile
+  args:
+    WITH_ML: ${WITH_ML:-false}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: citesure
+      POSTGRES_PASSWORD: citesure
+      POSTGRES_DB: citesure
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citesure -d citesure"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: *backend-build
+    image: citesure-backend
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: *backend-build
+    image: citesure-backend
+    environment: *backend-env
+    ports: ["8000:8000"]
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: *backend-build
+    image: citesure-backend
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-env
+    volumes: [uploads:/data/uploads]
+    healthcheck:
+      # The worker serves no HTTP API; its Prometheus endpoint proves the process is alive (the image default probes :8000).
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9100/metrics', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports: ["5173:8080"]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  uploads:
