@@ -1,4 +1,4 @@
-# CLAUDE.md — CiteSure (Project 3)
+# CLAUDE.md - CiteSure (Project 3)
 
 > Rename this file to `CLAUDE.md` at the root of the CiteSure repository. Claude Code only auto-loads files named `CLAUDE.md`.
 

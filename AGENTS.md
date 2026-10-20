@@ -1,4 +1,4 @@
-# AGENTS.md — CiteSure
+# AGENTS.md - CiteSure
 
 Portable instructions for any coding agent (Claude Code, Codex, Cursor, Copilot, OpenCode, Aider…). Claude Code also reads `CLAUDE.md`, which adds Claude-specific workflow detail; the rules below are the shared core.
 

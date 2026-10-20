@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from rapidfuzz import fuzz
 
 _SAME_LENGTH_MAP = str.maketrans(
-    {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", " ": " ", "\t": " ", "\n": " ", "\r": " "}
+    {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", chr(0x2014): "-", " ": " ", "\t": " ", "\n": " ", "\r": " "}
 )
 
 

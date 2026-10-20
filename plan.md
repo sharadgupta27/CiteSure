@@ -1,4 +1,4 @@
-# CiteSure — Project Plan (Project 3)
+# CiteSure - Project Plan (Project 3)
 
 > Grounded document Q&A with verified citations: enterprise RAG.
 > Working name: **CiteSure** ("answers you can verify"). Rubric: [docs/course/final-project-rubric.md](docs/course/final-project-rubric.md). Module 5 deliverable: [docs/course/module5-requirements.md](docs/course/module5-requirements.md).
@@ -227,7 +227,7 @@ substack/
 Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chapter draft. Effort assumes part-time work (about 10 h/week).
 
 ### Phase 0: Spec, Corpus & Agent Context (≈ 0.5 week)
-- [x] `git init`, `.gitignore`, license — repository exists; one commit per phase was made at the owner's request (earlier phase commits do not build alone: files were split by directory afterwards)
+- [x] `git init`, `.gitignore`, license - repository exists; one commit per phase was made at the owner's request (earlier phase commits do not build alone: files were split by directory afterwards)
 - [x] `product-spec.md`: personas (employee, admin), user stories, acceptance criteria
 - [x] Choose the domain and corpus; write a fetch script in `corpus/` and record the license
 - [x] **Write 40 golden questions before writing any RAG code**: 30 answerable (with expected source pages), 10 unanswerable or permission-restricted
@@ -238,8 +238,8 @@ Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chap
 
 ### Phase 1: API Contract & Frontend Prototype (≈ 1 week)
 - [x] `openapi.yaml` (including SSE documented as `text/event-stream`), linted with Spectral
-- [x] Vite + React + TS; generated client in `frontend/src/api/`; Prism mock server — Prism mock script `npm run mock` added, not exercised in this session
-- [x] Pages: Login, Workspace admin (collections, groups, members), Documents (upload + status), **Ask** (answer + citation chips), **Source viewer** (PDF/HTML with highlighted span), Feedback queue, Quality dashboard — deviation: the source viewer highlights the cited quote inside the chunk text; there is no page-image PDF viewer
+- [x] Vite + React + TS; generated client in `frontend/src/api/`; Prism mock server - Prism mock script `npm run mock` added, not exercised in this session
+- [x] Pages: Login, Workspace admin (collections, groups, members), Documents (upload + status), **Ask** (answer + citation chips), **Source viewer** (PDF/HTML with highlighted span), Feedback queue, Quality dashboard - deviation: the source viewer highlights the cited quote inside the chunk text; there is no page-image PDF viewer
 - [x] Vitest tests: citation rendering, highlight-range mapping, SSE event reducer
 
 **Done when:** the full UI flow works against mocks.
@@ -288,10 +288,10 @@ Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chap
   - **Answer:** correctness (LLM judge vs expected answer) and faithfulness (share of verified claims)
   - **Citations:** precision (cited chunk supports the claim) and recall
   - **Safety:** refusal accuracy on unanswerable and restricted questions (target 100% on restricted)
-- [x] **Experiment matrix** in `backend/evals/experiments.yaml`: vector-only vs hybrid, ± rerank, chunk size 256/400/800. Results table in `docs/eval-results.md` — deviation: ran 64/128-token chunk variants because every demo page is shorter than 256 tokens (see eval-results.md)
+- [x] **Experiment matrix** in `backend/evals/experiments.yaml`: vector-only vs hybrid, ± rerank, chunk size 256/400/800. Results table in `docs/eval-results.md` - deviation: ran 64/128-token chunk variants because every demo page is shorter than 256 tokens (see eval-results.md)
 - [x] Quality dashboard UI: metrics per eval run and a compare view
 - [x] Feedback → golden-set promotion flow
-- [x] `.github/workflows/rag-eval.yml`: runs the eval with Fake embedder/LLM for determinism on PRs, and the real-model eval on a nightly schedule — written and every command run locally; **not run on GitHub**; the real-model nightly run was never executed (no API key)
+- [x] `.github/workflows/rag-eval.yml`: runs the eval with Fake embedder/LLM for determinism on PRs, and the real-model eval on a nightly schedule - written and every command run locally; **not run on GitHub**; the real-model nightly run was never executed (no API key)
 - [ ] Stretch: push results to EvalOps (Project 1) through its `/gate` API
 
 **Done when:** the README shows a real before/after table, for example *"hybrid + rerank raised recall@5 from 0.71 to 0.88"*.
@@ -306,12 +306,12 @@ Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chap
 **Rubric:** 4, 6, 9 · **Guide chapter:** *"Testing a RAG system: unit, integration, adversarial"*.
 
 ### Phase 7: Containerize, Deploy, CI/CD (≈ 1 week)
-- [x] Multi-stage Dockerfiles with the fastembed models baked into the image (no download at runtime) — `WITH_ML=true` build arg implemented; the ML image was not built in this session
+- [x] Multi-stage Dockerfiles with the fastembed models baked into the image (no download at runtime) - `WITH_ML=true` build arg implemented; the ML image was not built in this session
 - [x] `docker-compose.yml` (dev) and `docker-compose.prod.yml`; a seed script loads a small demo corpus and demo users with different roles
 - [x] `ci.yml`: lint, type-check, unit, integration, E2E, security scans, image build
-- [x] `deploy.yml`: on `main` with green tests, push to GHCR, deploy to EC2, migrate, health check — written and validated locally; **not run, nothing deployed**
-- [x] S3 `BlobStore` in prod; uploads in the public demo are disabled or limited — `S3BlobStore` implemented (optional boto3); not exercised against real S3; production compose has `UPLOADS_ENABLED=false`
-- [ ] Public demo with pre-ingested corpus and two demo logins (employee, HR) — **NOT DONE**: needs an AWS account and explicit approval; runbook in docs/deployment.md
+- [x] `deploy.yml`: on `main` with green tests, push to GHCR, deploy to EC2, migrate, health check - written and validated locally; **not run, nothing deployed**
+- [x] S3 `BlobStore` in prod; uploads in the public demo are disabled or limited - `S3BlobStore` implemented (optional boto3); not exercised against real S3; production compose has `UPLOADS_ENABLED=false`
+- [ ] Public demo with pre-ingested corpus and two demo logins (employee, HR) - **NOT DONE**: needs an AWS account and explicit approval; runbook in docs/deployment.md
 
 **Rubric:** 8, 10, 11, 14 · **Guide chapter:** *"Deploying a RAG app on a budget: local embeddings, one Postgres, one VM"*.
 
@@ -350,15 +350,15 @@ Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chap
   - malicious uploads (zip bombs, polyglot files)
   - MCP over-permissioning
 - [x] `security/ai-data-policy.md`: what is sent to which LLM, PII handling, retention, deletion (removing a document removes its chunks and embeddings)
-- [~] App hardening: rate limits, upload limits, strict CORS, short-lived signed file URLs — rate limits, upload limits, strict CORS done; downloads require auth instead of signed URLs (not implemented)
+- [~] App hardening: rate limits, upload limits, strict CORS, short-lived signed file URLs - rate limits, upload limits, strict CORS done; downloads require auth instead of signed URLs (not implemented)
 
 **Rubric:** 13 · **Guide chapter:** *"The RAG threat model: prompt injection, leakage and PII"*.
 
 ### Phase 11: Docs, Demo & Launch (≈ 0.5 week)
 - [x] README: problem, screenshots/GIF, architecture, live URL, **eval results table**, run/test/deploy steps
 - [x] `docs/rag-design.md`: every design decision with the experiment that justified it
-- [ ] 2-minute demo video, including the permission-denied scenario — **NOT DONE**: script and captured outputs in docs/demo.md; no video recorded
-- [~] Publish the Substack series; write resume bullets with the numbers — chapters drafted in `substack/`; not published (owner publishes)
+- [ ] 2-minute demo video, including the permission-denied scenario - **NOT DONE**: script and captured outputs in docs/demo.md; no video recorded
+- [~] Publish the Substack series; write resume bullets with the numbers - chapters drafted in `substack/`; not published (owner publishes)
 
 **Rubric:** 1, 3, 14
 

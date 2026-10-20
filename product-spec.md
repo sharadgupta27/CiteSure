@@ -1,4 +1,4 @@
-# CiteSure — Product Spec
+# CiteSure - Product Spec
 
 > Answers you can verify. Grounded document Q&A with checked citations and permission-aware retrieval.
 

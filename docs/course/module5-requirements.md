@@ -1,4 +1,4 @@
-# Module 5 — Coding Agent Capabilities: MCP, Skills, Plugins, and Custom Agents
+# Module 5 - Coding Agent Capabilities: MCP, Skills, Plugins, and Custom Agents
 
 ## Overview
 
@@ -24,14 +24,14 @@ Different products use different names for these capabilities. For example, one 
 
 You will:
 
-- Understand the agent loop — context gathering, planning, tool calls, edits, tests, and iteration to a diff or PR — by pointing an agent at your Module 2/3 app and having it plan and ship a small feature
+- Understand the agent loop - context gathering, planning, tool calls, edits, tests, and iteration to a diff or PR - by pointing an agent at your Module 2/3 app and having it plan and ship a small feature
 - Write portable project instructions (AGENTS.md, CLAUDE.md, or equivalent) covering architecture, commands, conventions, and security boundaries so any agent can reuse them
 - Use MCP to expose a scoped set of tools, resources, and prompts to an agent, rather than giving it access to everything
-- Turn a checklist or procedure you keep repeating into a reusable workflow — a skill, slash command, rule, or recipe depending on the tool
+- Turn a checklist or procedure you keep repeating into a reusable workflow - a skill, slash command, rule, or recipe depending on the tool
 - Add hooks and guardrails so formatting, linting, and safety checks are automatic instead of relying on "please be careful"
 - Build specialized subagents with scoped context and permissions for side tasks like API review, debugging, or testing
 - Package shared configuration as a plugin or extension when it needs to move across teams or projects, not just live in one repo
-- Decide when to build a custom agent — for CI/CD, scheduled jobs, or structured pipelines — instead of using an interactive coding agent
+- Decide when to build a custom agent - for CI/CD, scheduled jobs, or structured pipelines - instead of using an interactive coding agent
 
 Module summary: The companion article covers two building blocks for working with coding
 agents: reusable skills for procedures you keep repeating, and specialized

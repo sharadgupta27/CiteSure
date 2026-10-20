@@ -66,7 +66,7 @@ Status: Downloaded newer image for semgrep/semgrep:latest
     ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
           ❰❰ Blocking ❱❱
           GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
-          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          repointed by the action owner, enabling supply-chain attacks - as seen in the trivy-action and kics-
           github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
           actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
           Details: https://sg.run/2LgAL                                                                       
@@ -115,7 +115,7 @@ Status: Downloaded newer image for semgrep/semgrep:latest
     ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
           ❰❰ Blocking ❱❱
           GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
-          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          repointed by the action owner, enabling supply-chain attacks - as seen in the trivy-action and kics-
           github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
           actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
           Details: https://sg.run/2LgAL                                                                       
@@ -144,7 +144,7 @@ Status: Downloaded newer image for semgrep/semgrep:latest
     ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
           ❰❰ Blocking ❱❱
           GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
-          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          repointed by the action owner, enabling supply-chain attacks - as seen in the trivy-action and kics-
           github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
           actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
           Details: https://sg.run/2LgAL                                                                       
@@ -165,7 +165,7 @@ Status: Downloaded newer image for semgrep/semgrep:latest
     ❯❱ yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
           ❰❰ Blocking ❱❱
           GitHub Actions step uses a mutable tag or branch reference. Tags and branch names can be silently   
-          repointed by the action owner, enabling supply-chain attacks — as seen in the trivy-action and kics-
+          repointed by the action owner, enabling supply-chain attacks - as seen in the trivy-action and kics-
           github-action compromises. Pin the reference to a full 40-character commit SHA instead, e.g. `uses: 
           actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608`.                                         
           Details: https://sg.run/2LgAL                                                                       

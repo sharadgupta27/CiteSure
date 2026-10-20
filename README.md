@@ -1,4 +1,4 @@
-# CiteSure — answers you can verify
+# CiteSure - answers you can verify
 
 **Grounded document Q&A with checked citations and permission-aware retrieval.** Ask a question about your company's documents. Every sentence in the answer carries a citation, every citation was checked against its source before you see it, and people can only ever get answers from documents they are allowed to read.
 
