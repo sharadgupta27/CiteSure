@@ -47,3 +47,20 @@ describe("describeLocation", () => {
     expect(describeLocation(citation({ heading_path: [], page_start: null, page_end: null }))).toBe("Parental Leave Policy");
   });
 });
+
+describe("public citations", () => {
+  it("describes a public source by title and host", () => {
+    expect(describeLocation({ ...citation(), document_title: "A Paper", source_type: "public", url: "https://www.arxiv.org/abs/1" })).toBe("A Paper · arxiv.org");
+    expect(describeLocation({ ...citation(), document_title: "A Paper", source_type: "public", url: null })).toBe("A Paper");
+  });
+
+  it("only allows http(s) addresses as links", async () => {
+    const { safeHref, hostOf } = await import("./citations");
+    expect(safeHref("https://example.org/x")).toBe("https://example.org/x");
+    expect(safeHref("javascript:alert(1)")).toBeNull();
+    expect(safeHref("data:text/html,<script>")).toBeNull();
+    expect(safeHref("not a url")).toBeNull();
+    expect(safeHref(null)).toBeNull();
+    expect(hostOf("nonsense")).toBe("");
+  });
+});

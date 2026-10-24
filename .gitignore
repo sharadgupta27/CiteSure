@@ -21,6 +21,7 @@ test-results/
 .env
 .env.*
 !.env.example
+!.env.private.example
 
 # Data that must never be committed
 corpus/raw/

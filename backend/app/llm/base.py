@@ -1,4 +1,5 @@
-"""The LLM boundary. Only this package imports the Anthropic SDK. The generation and verification models are
+"""The LLM boundary. The Anthropic SDK is imported only by llm/anthropic_provider.py and by research/web.py (URL discovery
+for the public lane, which receives only the egress-guarded keyword query). The generation and verification models are
 never given tools: they receive text and return structured JSON, nothing else (non-negotiable 3)."""
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ class GenerationRequest:
 
 
 class LLMProvider(Protocol):
+    hosted: bool  # True when the model runs on someone else's servers: it may then read public text only (private mode)
     answer_model: str
     verify_model: str
 

@@ -123,6 +123,11 @@ def main() -> int:
         help="write one configuration's per-question results as an EvalOps /gate/ingest `results` array (JSON)",
     )
     parser.add_argument("--cases-config", default="hybrid+rerank", help="the configuration --cases-out exports")
+    parser.add_argument(
+        "--redact",
+        action="store_true",
+        help="--cases-out carries no answer text (implied by PRIVATE_MODE=true): EvalOps still gets pass/fail and scores",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -134,7 +139,10 @@ def main() -> int:
         if args.cases_config not in items_by_config:
             parser.error(f"--cases-config {args.cases_config!r} is not one of {sorted(items_by_config)}")
         args.cases_out.write_text(
-            json.dumps(to_ingest_results(items_by_config[args.cases_config]), indent=2), encoding="utf-8"
+            json.dumps(
+                to_ingest_results(items_by_config[args.cases_config], redact=args.redact or settings.private_mode), indent=2
+            ),
+            encoding="utf-8",
         )
     table = format_table(results)
     print(

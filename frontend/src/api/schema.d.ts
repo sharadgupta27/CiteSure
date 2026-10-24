@@ -320,13 +320,57 @@ export interface paths {
         put?: never;
         /**
          * The same as /ask, as Server-Sent Events
-         * @description Events, in order: one or more `stage` events (`retrieving`, `generating`, `verifying`),
+         * @description Events, in order: one or more `stage` events (`retrieving`, `researching` when the public lane is used,
+         *     `generating`, `verifying`),
          *     then `token` events carrying pieces of the **verified** answer text, then one `final` event
          *     whose data is an `Answer`. Unverified text is never streamed. If something fails after the
          *     stream has started, a single `error` event (data: `Error`) ends the stream. Failures before the
          *     first event are ordinary HTTP errors. Every `data:` line is JSON.
          */
         post: operations["askStream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public-research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the public research lane is on, and how this server is configured
+         * @description Lets the UI offer the scope selector only when it will work, and show whether the server runs in private mode
+         *     (company text never reaches a hosted model or the public internet).
+         */
+        get: operations["getPublicResearchStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public-research/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Show the exact query that would leave the system, and whether the egress guard allows it
+         * @description Sends nothing. The reply says what `/ask` would send to the public sources for this question, and for a blocked
+         *     query it lists reason codes, never the offending text. Pass the (possibly edited) `query` back as
+         *     `public_query` on `/ask` to send exactly that.
+         */
+        post: operations["previewPublicQuery"];
         delete?: never;
         options?: never;
         head?: never;
@@ -745,8 +789,58 @@ export interface components {
             thread_id?: string | null;
             /** @description Admin-only override of the pipeline configuration (403 for non-admins) */
             config?: components["schemas"]["PipelineConfig"] | null;
+            /**
+             * @description Where the answer may draw from. `internal`: the caller's documents only, nothing leaves the system.
+             *     `public`: published papers and web pages only. `both`: the two, answered by the internal model.
+             *     Omitted means the server default (`internal` unless configured otherwise). 422 when public research is off.
+             */
+            scope?: components["schemas"]["AskScope"] | null;
+            /**
+             * @description The exact keyword query to send to public sources, usually taken from `/public-research/preview`.
+             *     Omitted means the server derives keywords from the question. It still passes the egress guard.
+             */
+            public_query?: string | null;
+        };
+        /** @enum {string} */
+        AskScope: "internal" | "public" | "both";
+        /** @enum {string} */
+        SourceType: "internal" | "public";
+        /** @description One outbound step of the public lane. `query` is present only when text actually left the system. */
+        EgressRecord: {
+            /** @description arxiv, crossref, openalex, europepmc, semanticscholar, web or public */
+            destination: string;
+            /** @enum {string} */
+            status: "sent" | "blocked" | "failed";
+            query: string | null;
+            /** @description Reason codes for a blocked or failed step */
+            reason: string | null;
+        };
+        PublicResearchStatus: {
+            enabled: boolean;
+            /** @description Company text never reaches a hosted model or the public internet */
+            private_mode: boolean;
+            default_scope: components["schemas"]["AskScope"];
+            sources: string[];
+            /** @description A hosted model may read public passages and cleared questions */
+            hosted_model_for_public: boolean;
+        };
+        PublicQueryPreviewRequest: {
+            question: string;
+            /** @description A query the user edited; checked instead of the derived keywords */
+            query?: string | null;
+        };
+        PublicQueryPreview: {
+            query: string;
+            allowed: boolean;
+            reasons: string[];
+            /** @description Plain-language reason a blocked query was blocked */
+            explanation: string;
         };
         Citation: {
+            /** @description `public` citations point at a paper or web page (`url`) and have no database chunk */
+            source_type?: components["schemas"]["SourceType"];
+            /** @description Address of a public source */
+            url?: string | null;
             /** Format: uuid */
             chunk_id: string;
             /** Format: uuid */
@@ -795,6 +889,11 @@ export interface components {
             thread_id: string;
             question: string;
             status: components["schemas"]["AnswerStatus"];
+            scope: components["schemas"]["AskScope"];
+            /** @description Plain-language notes, e.g. that the public search was skipped and why */
+            notices: string[];
+            /** @description Exactly what was sent to which public source for this answer */
+            egress: components["schemas"]["EgressRecord"][];
             claims: components["schemas"]["Claim"][];
             refusal: components["schemas"]["Refusal"] | null;
             /** @description Claims the model drafted that failed verification */
@@ -1709,6 +1808,54 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getPublicResearchStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The public research configuration */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicResearchStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    previewPublicQuery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicQueryPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The query and the guard's verdict */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicQueryPreview"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationError"];
             429: components["responses"]["TooManyRequests"];
         };

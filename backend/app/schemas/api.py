@@ -16,6 +16,8 @@ Entailment = Literal["supported", "partial", "unsupported"]
 AnswerStatus = Literal["answered", "refused"]
 EvalRunStatus = Literal["queued", "running", "done", "failed"]
 GoldenSource = Literal["manual", "feedback"]
+AskScope = Literal["internal", "public", "both"]
+SourceType = Literal["internal", "public"]
 
 
 class ApiModel(BaseModel):
@@ -151,6 +153,35 @@ class AskRequest(ApiModel):
     question: str = Field(min_length=3, max_length=1000)
     thread_id: uuid.UUID | None = None
     config: PipelineConfig | None = None
+    scope: AskScope | None = None
+    public_query: str | None = Field(default=None, max_length=300)
+
+
+class EgressRecord(ApiModel):
+    destination: str
+    status: Literal["sent", "blocked", "failed"]
+    query: str | None
+    reason: str | None
+
+
+class PublicResearchStatus(ApiModel):
+    enabled: bool
+    private_mode: bool
+    default_scope: AskScope
+    sources: list[str]
+    hosted_model_for_public: bool
+
+
+class PublicQueryPreviewRequest(ApiModel):
+    question: str = Field(min_length=3, max_length=1000)
+    query: str | None = Field(default=None, max_length=300)
+
+
+class PublicQueryPreview(ApiModel):
+    query: str
+    allowed: bool
+    reasons: list[str]
+    explanation: str
 
 
 class Citation(ApiModel):
@@ -163,6 +194,8 @@ class Citation(ApiModel):
     heading_path: list[str]
     page_start: int | None
     page_end: int | None
+    source_type: SourceType = "internal"
+    url: str | None = None
 
 
 class Verification(ApiModel):
@@ -194,6 +227,9 @@ class Answer(ApiModel):
     thread_id: uuid.UUID
     question: str
     status: AnswerStatus
+    scope: AskScope
+    notices: list[str]
+    egress: list[EgressRecord]
     claims: list[Claim]
     refusal: Refusal | None
     dropped_claims: int

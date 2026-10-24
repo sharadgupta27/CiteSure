@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.errors import Forbidden, NotFound, UpstreamError
+from app.egress.corpus import SqlInternalCorpus
+from app.errors import Forbidden, InvalidInput, NotFound, UpstreamError
 from app.models import Answer as AnswerRow
 from app.observability import StageTimer
 from app.providers import Providers
@@ -20,7 +21,7 @@ from app.repositories import asks as asks_repo
 from app.repositories import documents as documents_repo
 from app.schemas import api as s
 from app.services import acl
-from app.services.pipeline import PipelineOutcome, default_config, estimate_cost, run_pipeline
+from app.services.pipeline import PipelineOutcome, default_config, run_pipeline
 
 TOKEN_WORDS = 3
 log = logging.getLogger("citesure.ask")
@@ -42,6 +43,8 @@ def outcome_to_json(outcome: PipelineOutcome) -> dict[str, Any]:
                     "heading_path": c.chunk.heading_path,
                     "page_start": c.chunk.page_start,
                     "page_end": c.chunk.page_end,
+                    "source_type": c.chunk.source_type,
+                    "url": c.chunk.url,
                 }
                 for c in claim.citations
             ],
@@ -60,7 +63,17 @@ def outcome_to_json(outcome: PipelineOutcome) -> dict[str, Any]:
                 for c in outcome.refusal.closest
             ],
         }
-    return {"claims": claims, "refusal": refusal, "dropped_claims": outcome.dropped}
+    return {
+        "claims": claims,
+        "refusal": refusal,
+        "dropped_claims": outcome.dropped,
+        "scope": outcome.scope,
+        "notices": outcome.notices,
+        # What actually left the system. A blocked entry carries reason codes, never the blocked text.
+        "egress": [
+            {"destination": r.destination, "status": r.status, "query": r.query, "reason": r.reason} for r in outcome.egress
+        ],
+    }
 
 
 def to_answer(row: AnswerRow) -> s.Answer:
@@ -73,6 +86,9 @@ def to_answer(row: AnswerRow) -> s.Answer:
         claims=data["claims"],
         refusal=data["refusal"],
         dropped_claims=data["dropped_claims"],
+        scope=data.get("scope", "internal"),  # answers stored before the public lane existed have none of these
+        notices=data.get("notices", []),
+        egress=data.get("egress", []),
         latency_ms_by_stage=row.latency_ms_by_stage,
         tokens_in=row.tokens_in,
         tokens_out=row.tokens_out,
@@ -101,6 +117,7 @@ class AskService:
         with timer.stage("acl"):
             context = await acl.context_for_workspace(self.session, user_id, body.workspace_id)
         config = self._config(context.is_admin, body.config)
+        scope = self._scope(body.scope)
 
         thread = None
         if body.thread_id is not None:
@@ -121,6 +138,8 @@ class AskService:
                 question=body.question,
                 config=config,
                 timer=timer,
+                scope=scope,
+                public_query=body.public_query,
             ):
                 if kind == "stage":
                     assert isinstance(payload, str)
@@ -149,12 +168,15 @@ class AskService:
                 "answer_model": self.providers.llm.answer_model,
                 "verify_model": self.providers.llm.verify_model,
                 "quote_match_min": self.settings.quote_match_min,
-                "prompt": "answer_v1",
+                "prompt": "answer_v2" if outcome.public_retrieved else "answer_v1",
+                "scope": scope,
+                "private_mode": self.settings.private_mode,
+                "hosted_model_used": outcome.hosted,
             },
             latency_ms_by_stage=outcome.timings,
             tokens_in=outcome.usage_answer.tokens_in + outcome.usage_verify.tokens_in,
             tokens_out=outcome.usage_answer.tokens_out + outcome.usage_verify.tokens_out,
-            cost_usd=estimate_cost(self.settings, outcome.usage_answer, outcome.usage_verify),
+            cost_usd=outcome.cost_usd,
         )
         await self.session.commit()
         answer = to_answer(row)
@@ -174,6 +196,32 @@ class AskService:
         assert final is not None
         return final
 
+    def public_status(self) -> s.PublicResearchStatus:
+        research = self.providers.research
+        return s.PublicResearchStatus(
+            enabled=research is not None,
+            private_mode=self.settings.private_mode,
+            default_scope=self.settings.default_scope,
+            sources=self.settings.public_source_list if research is not None else [],
+            hosted_model_for_public=self.providers.public_llm is not None and self.providers.public_llm.hosted,
+        )
+
+    async def preview_public_query(self, body: s.PublicQueryPreviewRequest) -> s.PublicQueryPreview:
+        """What /ask would send to the public sources, and the guard's verdict. Nothing is sent."""
+        if self.providers.research is None:
+            raise InvalidInput("Public research is not enabled on this server")
+        research = self.providers.research.for_request(SqlInternalCorpus(self.session))
+        preview = await research.preview(body.question, body.query)
+        return s.PublicQueryPreview(
+            query=preview.query, allowed=preview.allowed, reasons=list(preview.reasons), explanation=preview.explanation
+        )
+
+    def _scope(self, requested: Literal["internal", "public", "both"] | None) -> Literal["internal", "public", "both"]:
+        scope = requested or self.settings.default_scope
+        if scope != "internal" and self.providers.research is None:
+            raise InvalidInput("Public research is not enabled on this server")
+        return scope
+
     def _config(self, is_admin: bool, override: s.PipelineConfig | None) -> PipelineConfig:
         if override is None:
             return default_config(self.settings)
@@ -185,7 +233,10 @@ class AskService:
     async def _recheck(self, user_id: uuid.UUID, rows: list[AnswerRow]) -> list[s.Answer]:
         """Drop every citation (and closest-source link) the caller can no longer read, in one SQL lookup."""
         answers = [to_answer(r) for r in rows]
-        referenced = {c.chunk_id for a in answers for claim in a.claims for c in claim.citations}
+        # Public citations are quotes from the open internet with no database row, so there is nothing to re-check.
+        referenced = {
+            c.chunk_id for a in answers for claim in a.claims for c in claim.citations if c.source_type == "internal"
+        }
         referenced |= {c.chunk_id for a in answers if a.refusal for c in a.refusal.closest_sources}
         visible = await documents_repo.visible_chunk_ids(
             self.session,
@@ -196,7 +247,7 @@ class AskService:
         for answer in answers:
             claims = []
             for claim in answer.claims:
-                citations = [c for c in claim.citations if c.chunk_id in visible]
+                citations = [c for c in claim.citations if c.source_type == "public" or c.chunk_id in visible]
                 if citations:
                     claims.append(claim.model_copy(update={"citations": citations}))
             refusal = answer.refusal

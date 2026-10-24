@@ -21,6 +21,7 @@ tags:
   - name: collections
   - name: documents
   - name: ask
+  - name: public-research
   - name: feedback
   - name: evaluation
   - name: ops
@@ -431,7 +432,8 @@ paths:
       operationId: askStream
       summary: The same as /ask, as Server-Sent Events
       description: |
-        Events, in order: one or more `stage` events (`retrieving`, `generating`, `verifying`),
+        Events, in order: one or more `stage` events (`retrieving`, `researching` when the public lane is used,
+        `generating`, `verifying`),
         then `token` events carrying pieces of the **verified** answer text, then one `final` event
         whose data is an `Answer`. Unverified text is never streamed. If something fails after the
         stream has started, a single `error` event (data: `Error`) ends the stream. Failures before the
@@ -450,6 +452,44 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /public-research:
+    get:
+      tags: [public-research]
+      operationId: getPublicResearchStatus
+      summary: Whether the public research lane is on, and how this server is configured
+      description: |
+        Lets the UI offer the scope selector only when it will work, and show whether the server runs in private mode
+        (company text never reaches a hosted model or the public internet).
+      responses:
+        '200':
+          description: The public research configuration
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicResearchStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /public-research/preview:
+    post:
+      tags: [public-research]
+      operationId: previewPublicQuery
+      summary: Show the exact query that would leave the system, and whether the egress guard allows it
+      description: |
+        Sends nothing. The reply says what `/ask` would send to the public sources for this question, and for a blocked
+        query it lists reason codes, never the offending text. Pass the (possibly edited) `query` back as
+        `public_query` on `/ask` to send exactly that.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublicQueryPreviewRequest' }
+      responses:
+        '200':
+          description: The query and the guard's verdict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicQueryPreview' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /threads:
@@ -1025,11 +1065,74 @@ components:
           oneOf:
             - $ref: '#/components/schemas/PipelineConfig'
             - type: 'null'
+        scope:
+          description: |
+            Where the answer may draw from. `internal`: the caller's documents only, nothing leaves the system.
+            `public`: published papers and web pages only. `both`: the two, answered by the internal model.
+            Omitted means the server default (`internal` unless configured otherwise). 422 when public research is off.
+          oneOf:
+            - $ref: '#/components/schemas/AskScope'
+            - type: 'null'
+        public_query:
+          description: |
+            The exact keyword query to send to public sources, usually taken from `/public-research/preview`.
+            Omitted means the server derives keywords from the question. It still passes the egress guard.
+          type: [string, 'null']
+          maxLength: 300
+    AskScope:
+      type: string
+      enum: [internal, public, both]
+    SourceType:
+      type: string
+      enum: [internal, public]
+    EgressRecord:
+      type: object
+      description: One outbound step of the public lane. `query` is present only when text actually left the system.
+      required: [destination, status, query, reason]
+      properties:
+        destination: { type: string, description: 'arxiv, crossref, openalex, europepmc, semanticscholar, web or public' }
+        status: { type: string, enum: [sent, blocked, failed] }
+        query: { type: [string, 'null'] }
+        reason: { type: [string, 'null'], description: Reason codes for a blocked or failed step, never the blocked text }
+    PublicResearchStatus:
+      type: object
+      required: [enabled, private_mode, default_scope, sources, hosted_model_for_public]
+      properties:
+        enabled: { type: boolean }
+        private_mode: { type: boolean, description: Company text never reaches a hosted model or the public internet }
+        default_scope: { $ref: '#/components/schemas/AskScope' }
+        sources:
+          type: array
+          items: { type: string }
+        hosted_model_for_public: { type: boolean, description: A hosted model may read public passages and cleared questions }
+    PublicQueryPreviewRequest:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, minLength: 3, maxLength: 1000 }
+        query:
+          type: [string, 'null']
+          maxLength: 300
+          description: A query the user edited; checked instead of the derived keywords
+    PublicQueryPreview:
+      type: object
+      required: [query, allowed, reasons, explanation]
+      properties:
+        query: { type: string }
+        allowed: { type: boolean }
+        reasons:
+          type: array
+          items: { type: string }
+        explanation: { type: string, description: Plain-language reason a blocked query was blocked }
 
     Citation:
       type: object
       required: [chunk_id, document_id, document_title, quote, quote_start, quote_end, heading_path, page_start, page_end]
       properties:
+        source_type:
+          description: '`public` citations point at a paper or web page (`url`) and have no database chunk'
+          $ref: '#/components/schemas/SourceType'
+        url: { type: [string, 'null'], description: Address of a public source }
         chunk_id: { type: string, format: uuid }
         document_id: { type: string, format: uuid }
         document_title: { type: string }
@@ -1081,12 +1184,21 @@ components:
       enum: [answered, refused]
     Answer:
       type: object
-      required: [id, thread_id, question, status, claims, refusal, dropped_claims, latency_ms_by_stage, tokens_in, tokens_out, cost_usd, created_at]
+      required: [id, thread_id, question, status, scope, notices, egress, claims, refusal, dropped_claims, latency_ms_by_stage, tokens_in, tokens_out, cost_usd, created_at]
       properties:
         id: { type: string, format: uuid }
         thread_id: { type: string, format: uuid }
         question: { type: string }
         status: { $ref: '#/components/schemas/AnswerStatus' }
+        scope: { $ref: '#/components/schemas/AskScope' }
+        notices:
+          type: array
+          items: { type: string }
+          description: Plain-language notes, e.g. that the public search was skipped and why
+        egress:
+          type: array
+          items: { $ref: '#/components/schemas/EgressRecord' }
+          description: Exactly what was sent to which public source for this answer
         claims:
           type: array
           items: { $ref: '#/components/schemas/Claim' }

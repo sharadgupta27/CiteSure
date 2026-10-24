@@ -1,0 +1,196 @@
+# Private stack: company documents never leave this machine, published research comes in through an allow-list proxy.
+#
+#   cp .env.private.example .env      # then edit it
+#   docker compose -f docker-compose.private.yml --profile setup run --rm ollama-pull     # once: download the local model
+#   docker compose -f docker-compose.private.yml up -d --build
+#   docker compose -f docker-compose.private.yml run --rm api python -m app.seed             # demo company (optional)
+#   open http://localhost:8080                                                               # or https://$DOMAIN
+#   deploy/verify-isolation.sh                                                               # proves the claims below
+#
+# How the guarantee is built (docs/private-deployment.md):
+#   * `internal` is a Docker network with NO route to the outside (internal: true). The database, the API, the worker
+#     and the local model live only there, so even a bug or a stolen API key cannot open a connection to the internet.
+#   * The ONLY container on both networks that can reach the internet is `egress-proxy`, a Squid proxy that allows the
+#     scholarly APIs listed in deploy/egress/allowlist.txt (and, with EGRESS_MODE=open, public web pages) and refuses
+#     private addresses.
+#   * The API reaches the proxy through EGRESS_PROXY_URL and sends it only guard-approved keywords (app/egress/).
+#   * Answers over company text are written by the local model (`ollama`). A hosted model (Claude) reads only public
+#     passages and questions the egress guard cleared.
+
+x-backend-env: &backend-env
+  ENV: ${ENV:-prod}
+  DATABASE_URL: postgresql+asyncpg://citesure:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/citesure
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (32+ random characters)}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+  TRUST_PROXY_HEADERS: "true"
+  PRIVATE_MODE: "true"
+  # Company text: a model on the private network, local embeddings and reranking.
+  LLM_PROVIDER: ${LLM_PROVIDER:-local} # private mode rejects "anthropic" at boot
+  LOCAL_LLM_BASE_URL: http://ollama:11434/v1
+  LOCAL_ANSWER_MODEL: ${LOCAL_ANSWER_MODEL:-llama3.2:3b}
+  LOCAL_VERIFY_MODEL: ${LOCAL_VERIFY_MODEL:-llama3.2:3b}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fastembed}
+  RERANKER: ${RERANKER:-cross-encoder}
+  # The public lane.
+  PUBLIC_RESEARCH_ENABLED: ${PUBLIC_RESEARCH_ENABLED:-true}
+  DEFAULT_SCOPE: ${DEFAULT_SCOPE:-internal}
+  PUBLIC_SOURCES: ${PUBLIC_SOURCES:-arxiv,crossref,openalex,europepmc}
+  PUBLIC_LLM_PROVIDER: ${PUBLIC_LLM_PROVIDER:-none}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANSWER_MODEL: ${ANSWER_MODEL:-claude-sonnet-5-5}
+  VERIFY_MODEL: ${VERIFY_MODEL:-claude-haiku-5-5}
+  CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+  EGRESS_MODE: ${EGRESS_MODE:-allowlist}
+  EGRESS_PROXY_URL: http://egress-proxy:3128
+  EGRESS_DENY_TERMS: ${EGRESS_DENY_TERMS:-}
+  EGRESS_ALLOW_TERMS: ${EGRESS_ALLOW_TERMS:-}
+  EGRESS_CANARIES: ${EGRESS_CANARIES:-}
+  STORAGE_BACKEND: local
+  STORAGE_PATH: /data/uploads
+  UPLOADS_ENABLED: ${UPLOADS_ENABLED:-true}
+  SEED_PASSWORD: ${SEED_PASSWORD:-}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+
+x-backend-build: &backend-build
+  context: .
+  dockerfile: backend/Dockerfile
+  args:
+    WITH_ML: ${WITH_ML:-true} # fastembed models are baked into the image, so nothing is downloaded at runtime
+
+networks:
+  internal:
+    internal: true # no route to the internet
+  edge: {} # has internet access; only egress-proxy, caddy and the one-off model download join it
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    networks: [internal]
+    environment:
+      POSTGRES_USER: citesure
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: citesure
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citesure -d citesure"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: *backend-build
+    image: citesure-backend:private
+    command: ["alembic", "upgrade", "head"]
+    networks: [internal]
+    environment: *backend-env
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    networks: [internal]
+    volumes: [ollama:/root/.ollama]
+    # NVIDIA GPU: add -f docker-compose.gpu.yml (needs the NVIDIA container toolkit / Docker Desktop with WSL2 GPU support).
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # One-off, on the internet-facing network, to download the model into the `ollama` volume. Not part of `up`.
+  ollama-pull:
+    image: ollama/ollama:latest
+    profiles: ["setup"]
+    networks: [edge]
+    volumes: [ollama:/root/.ollama]
+    environment:
+      MODELS: ${LOCAL_ANSWER_MODEL:-llama3.2:3b} ${LOCAL_VERIFY_MODEL:-llama3.2:3b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve & pid=$$!
+        for i in $$(seq 1 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done
+        for m in $$(printf '%s\n' $$MODELS | sort -u); do ollama pull "$$m"; done
+        kill $$pid
+
+  egress-proxy:
+    build: deploy/egress
+    restart: unless-stopped
+    networks: [internal, edge]
+    environment:
+      EGRESS_MODE: ${EGRESS_MODE:-allowlist}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3128"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: *backend-build
+    image: citesure-backend:private
+    restart: unless-stopped
+    networks: [internal]
+    environment: *backend-env
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      ollama: { condition: service_healthy }
+      egress-proxy: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { memory: 2G }
+
+  worker:
+    build: *backend-build
+    image: citesure-backend:private
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    networks: [internal]
+    environment: *backend-env
+    volumes: [uploads:/data/uploads]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9100/metrics', timeout=2).status == 200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      start_period: 20s
+      retries: 5
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      resources:
+        limits: { memory: 2G }
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    networks: [internal]
+    depends_on: [api]
+
+  # TLS and the only published ports. Bound to localhost by default: put Tailscale, a VPN or Cloudflare Access in front
+  # of it to reach it from elsewhere (docs/private-deployment.md). Never publish the api, db or ollama ports.
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    networks: [internal, edge]
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-8443}:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80} # ":80" = plain HTTP on this machine; a real domain name = automatic HTTPS
+    volumes:
+      - ./deploy/Caddyfile.private:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend, api]
+
+volumes:
+  pgdata:
+  uploads:
+  ollama:
+  caddy_data:
+  caddy_config:

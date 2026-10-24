@@ -5,7 +5,7 @@ export type Phase = "idle" | "streaming" | "done" | "error";
 
 export interface StreamState {
   phase: Phase;
-  /** Last pipeline stage reported by the server: retrieving, generating or verifying. */
+  /** Last pipeline stage reported by the server: retrieving, researching, generating or verifying. */
   stage: string | null;
   /** Verified answer text streamed so far (never contains unverified claims). */
   text: string;
@@ -44,6 +44,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
 
 export const STAGE_LABELS: Record<string, string> = {
   retrieving: "Searching the documents you can access…",
+  researching: "Searching published papers and the web…",
   generating: "Writing an answer from the sources…",
   verifying: "Checking every citation against its source…",
 };

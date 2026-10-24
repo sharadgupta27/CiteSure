@@ -154,3 +154,12 @@ async def test_missing_password_is_a_clear_configuration_error(monkeypatch: pyte
 def test_the_diagnose_prompt_forbids_editing_the_golden_set() -> None:
     text = server.diagnose_bad_answer("How many weeks?", "16", "8")
     assert "How many weeks?" in text and "Do not edit evaluation data" in text and "explain_retrieval" in text
+
+
+async def test_ask_always_uses_the_internal_scope_so_the_agent_never_searches_the_public_internet(use_backend) -> None:
+    calls: list[httpx.Request] = []
+    refused = {"status": "refused", "dropped_claims": 0, "latency_ms_by_stage": {}, "refusal": {"reason": "no_sources"}}
+    use_backend({("POST", "/ask"): (200, refused)}, calls=calls)
+    await server.ask("what is the sabbatical policy?")
+    sent = [json.loads(c.content) for c in calls if c.url.path.endswith("/ask")]
+    assert sent and all(body["scope"] == "internal" for body in sent)

@@ -79,3 +79,20 @@ uv run python -m app.evals.run --matrix evals/experiments.yaml --cases-out eval-
 EVALOPS_API_KEY=eo_... python evals/publish_to_evalops.py eval-cases.json \
     --url http://localhost:8000 --dataset-id 1 --head-label main --baseline-label main --bootstrap-ok
 ```
+
+## Real or private data: what EvalOps stores
+
+The shipped golden set and the CI run use the fictional corpus, so EvalOps only ever sees invented questions. If you run the same pipeline over a **real** corpus, set `PRIVATE_MODE=true` (or pass `--redact` to `python -m app.evals.run` and `python -m app.evals.evalops`):
+
+| | Normal | `PRIVATE_MODE` / `--redact` |
+|---|---|---|
+| Dataset row `inputs.question` | the question | `[redacted]` |
+| Dataset row `expected_output` | the reference answer | `[redacted]` (`[refused]` is kept) |
+| Result `output` | the answer text | `[answered]` or `[refused]` |
+| Everything the gate needs | `case_ref`, pass/fail, score, latency, tags | the same |
+
+The gate works identically, because it compares per-question pass/fail and scores, never words. Verified against a live EvalOps: 40 redacted cases imported; the first `main` run passed at 85 percent; an identical pull request passed with 0 regressions; flipping one question made it fail (82 percent, 1 regression, exit code 1); EvalOps' stored results contain only the placeholders. EvalOps' own real-model evaluators (`LLM_PROVIDER=anthropic` there) would send case text to their provider, so do not import real company questions into a project that uses them.
+
+## Where EvalOps runs
+
+CI only needs `EVALOPS_URL` to be reachable from the runner. Free ways to get that, with the CiteSure stack staying private: [free-deployment.md](free-deployment.md).

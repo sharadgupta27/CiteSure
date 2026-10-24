@@ -75,7 +75,24 @@
       "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
     },
     {
-      "id": 11, "type": "logs", "title": "API warnings and errors", "gridPos": { "h": 8, "w": 24, "x": 0, "y": 29 },
+      "id": 12, "type": "timeseries", "title": "Public lane: outbound requests and guard decisions (per minute)", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 29 },
+      "description": "What the API sent to public sources, by destination and outcome, and what the egress guard allowed or blocked. Only counts: never text.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "{{destination}} {{outcome}}", "expr": "sum by (destination, outcome) (rate(citesure_egress_requests_total[5m])) * 60" },
+        { "refId": "B", "legendFormat": "guard {{kind}} {{decision}}", "expr": "sum by (kind, decision) (rate(citesure_egress_decisions_total[5m])) * 60" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+    {
+      "id": 13, "type": "stat", "title": "Blocked by the egress guard (1h)", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 29 },
+      "description": "Public questions or queries the guard refused to send. A burst means people paste internal text into public questions.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(citesure_egress_decisions_total{decision=\"blocked\"}[1h]))" }],
+      "fieldConfig": { "defaults": { "min": 0, "unit": "none", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 20 }] } }, "overrides": [] }
+    },
+    {
+      "id": 11, "type": "logs", "title": "API warnings and errors", "gridPos": { "h": 8, "w": 24, "x": 0, "y": 37 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [{ "refId": "A", "expr": "{service=~\"api|worker\"} |~ \"(?i)warn|error|exception\"" }]
     }

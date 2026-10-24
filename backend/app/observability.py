@@ -30,6 +30,17 @@ ASK_COST = Counter("citesure_ask_cost_usd_total", "Estimated LLM spend in USD")
 INGEST_DOCS = Counter("citesure_ingest_documents_total", "Documents processed by the worker", ["status"])
 QUEUE_DEPTH = Gauge("citesure_job_queue_depth", "Queued plus running background jobs")
 HTTP_REQUESTS = Counter("citesure_http_requests_total", "HTTP requests", ["method", "status"])
+EGRESS_DECISIONS = Counter(
+    "citesure_egress_decisions_total", "Egress guard decisions on text that would leave the system", ["kind", "decision"]
+)
+EGRESS_REQUESTS = Counter(
+    "citesure_egress_requests_total",
+    "Outbound requests to the public internet, by destination and outcome",
+    ["destination", "outcome"],
+)
+PUBLIC_ASKS = Counter(
+    "citesure_public_research_total", "Questions that used the public lane, by scope and outcome", ["scope", "outcome"]
+)
 
 
 class StageTimer:

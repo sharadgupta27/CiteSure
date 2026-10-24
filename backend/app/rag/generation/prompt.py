@@ -11,6 +11,7 @@ from app.rag.types import ScoredChunk
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
 ANSWER_PROMPT = "answer_v1"
+ANSWER_PROMPT_MIXED = "answer_v2"  # used only when public sources are present (docs/public-research.md)
 ENTAILMENT_PROMPT = "entailment_v1"
 JUDGE_PROMPT = "judge_v1"
 
@@ -26,6 +27,7 @@ class SourceBlock:
     document_title: str
     heading: str
     text: str
+    origin: str = "internal"  # "public" for papers and web pages; only then is the attribute rendered
 
 
 # Our own delimiters plus tags a document might forge to look like a system, user or tool message.
@@ -53,15 +55,21 @@ def build_sources(chunks: list[ScoredChunk]) -> tuple[list[SourceBlock], dict[st
     id_map: dict[str, ScoredChunk] = {}
     for index, chunk in enumerate(chunks, start=1):
         source_id = f"S{index}"
-        blocks.append(SourceBlock(source_id, chunk.document_title, " > ".join(chunk.heading_path), chunk.text))
+        blocks.append(
+            SourceBlock(source_id, chunk.document_title, " > ".join(chunk.heading_path), chunk.text, chunk.source_type)
+        )
         id_map[source_id] = chunk
     return blocks, id_map
 
 
+def _origin_attribute(block: SourceBlock) -> str:
+    return ' origin="public"' if block.origin == "public" else ""
+
+
 def render_user_message(question: str, blocks: list[SourceBlock]) -> str:
     rendered = "\n".join(
-        f'<source id="{b.id}" document="{attribute(b.document_title)}" section="{attribute(b.heading)}">\n'
-        f"{neutralise_tags(b.text)}\n</source>"
+        f'<source id="{b.id}" document="{attribute(b.document_title)}" section="{attribute(b.heading)}"'
+        f"{_origin_attribute(b)}>\n{neutralise_tags(b.text)}\n</source>"
         for b in blocks
     )
     return f"<sources>\n{rendered}\n</sources>\n\n<question>\n{neutralise_tags(question)}\n</question>"

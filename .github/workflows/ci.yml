@@ -161,3 +161,18 @@ jobs:
         run: |
           docker build -f backend/Dockerfile -t citesure-backend:ci .
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.57.0 image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 citesure-backend:ci
+
+  private-stack:
+    name: Private stack (egress proxy policy, compose file)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: The compose file is valid
+        env: { POSTGRES_PASSWORD: ci-only, JWT_SECRET: ci-only-ci-only-ci-only-ci-only-0000 }
+        run: docker compose -f docker-compose.private.yml config -q
+      - name: Build the egress proxy
+        run: docker build -t citesure-egress deploy/egress
+      - name: Allow-list policy lets scholarly APIs through and nothing else
+        run: deploy/egress/test-policy.sh allowlist
+      - name: Open policy lets public pages through but never private addresses
+        run: deploy/egress/test-policy.sh open

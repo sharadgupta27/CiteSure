@@ -57,6 +57,7 @@ You need Docker, Python 3.12 with [uv](https://docs.astral.sh/uv/), and Node 22.
 | 12 | [Giving coding agents safe access with MCP, skills and hooks](12-agent-extension-pack.md) | Advice is not enough: enforce rules with code | agent pack, hook |
 | 13 | [The RAG threat model](13-rag-threat-model.md) | Prompt injection, leaks, uploads, PII, and what we found | threats |
 | 14 | [Lessons, results and what to do next](14-lessons-and-launch.md) | What worked, what did not, how to describe it on a résumé | |
+| 15 | [Keep the secrets in, let the science in](15-private-mode-and-public-research.md) | Two lanes: a local model for company text, a guarded door for published research | isolation check |
 
 A [glossary](glossary.md) explains every technical word in one or two sentences. Skim it first if you like.
 

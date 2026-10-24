@@ -95,17 +95,36 @@ WITH_ML=true EMBEDDING_PROVIDER=fastembed RERANKER=cross-encoder docker compose 
 
 Variables are documented in [.env.example](.env.example). Stop everything: `docker compose down` (add `-v` to delete the data).
 
+## 4b. Private mode and public research (new)
+
+CiteSure can run so that **company documents never leave your machine** while still answering from **published papers and web pages**.
+
+| | |
+|---|---|
+| Company text | read only by a model you run (`LLM_PROVIDER=local`, e.g. Ollama) with local embeddings; a hosted model for it is refused at boot |
+| Published research | arXiv, Crossref, OpenAlex, Europe PMC (and, with your Claude key, any web page) through an **egress guard** and an **allow-list proxy**; only keywords go out, you can preview and edit them, and every answer says what was sent |
+| Claude | reads public passages and guard-cleared questions only; never company text |
+| Proof | a canary planted in a document never appears in any outbound request or hosted prompt (integration tests); `deploy/verify-isolation.sh` proves the running stack has no other route out |
+
+```bash
+cp .env.private.example .env       # secrets, EGRESS_DENY_TERMS, optionally ANTHROPIC_API_KEY for the public lane
+docker compose -f docker-compose.private.yml --profile setup run --rm ollama-pull
+docker compose -f docker-compose.private.yml up -d --build && deploy/verify-isolation.sh
+```
+
+[docs/public-research.md](docs/public-research.md) · [docs/private-deployment.md](docs/private-deployment.md) · [docs/free-deployment.md](docs/free-deployment.md) (free hosting, and how EvalOps stays connected) · [docs/evalops-integration.md](docs/evalops-integration.md)
+
 ## 5. Test it
 
 | What                                                                                          | Command                                                                                                                                                                                              | Needs    | Count        |
 | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ |
-| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 94           |
-| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 73           |
+| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 213          |
+| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 86           |
 | Lint and types                                                                                | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app`                                                                                                             |          |              |
-| Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 59           |
+| Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 72           |
 | API contract                                                                                  | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py`                                                                                                |          |              |
 | End to end (browser, against Compose)                                                         | `docker compose up -d --build && docker compose run --rm api python -m app.seed && cd e2e && npm ci && npx playwright install chromium && npx playwright test`                                     | Docker   | 9            |
-| Agent pack                                                                                    | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`; `cd mcp-server && uv run pytest`; `cd custom-agent && uv run --no-project --with pytest --with httpx python -m pytest` |          | 60 + 12 + 13 |
+| Agent pack                                                                                    | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`; `cd mcp-server && uv run pytest`; `cd custom-agent && uv run --no-project --with pytest --with httpx python -m pytest` |          | 60 + 13 + 13 |
 | Evaluation (quality)                                                                          | `cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml`                                                                                                                     | Postgres | 40 questions |
 
 Integration tests are clearly separated (`@pytest.mark.integration`, folder `tests/integration/`) and never call a real LLM or embedding API. The **ACL leak tests** cover every endpoint that returns content: documents, chunks, files, ask, streaming, retrieval diagnostics, and stored answers after access is revoked.
@@ -119,18 +138,21 @@ Everything a coding agent needs to work on CiteSure safely: [docs/agent-extensio
 | Project instructions                                                                         | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                                                                           |
 | 4 reusable workflows (skills)                                                                | [agent-capabilities/](agent-capabilities/): `add-golden-question`, `ingest-new-doc-type`, `tune-retrieval`, `review-api-change` |
 | 3 specialist subagents (read-only)                                                           | `retrieval-debugger`, `citation-auditor`, `api-contract-reviewer`                                                                |
-| MCP server (6 tools, scoped service user)                                                    | [mcp-server/](mcp-server/)                                                                                                              |
+| MCP server (6 tools, scoped service user, internal scope only)                                                    | [mcp-server/](mcp-server/)                                                                                                              |
 | Guardrail hooks (secrets, golden-set, migrations, destructive commands; format; stop checks) | [agent-hooks/](agent-hooks/)                                                                                                            |
 | Plugin and nightly custom agent                                                              | [plugins/citesure-agent-pack/](plugins/citesure-agent-pack/), [custom-agent/](custom-agent/)                                             |
 
 ## 7. Security
 
 Threat model, AI/data policy and real scanner output (gitleaks, Semgrep, Trivy, pip-audit, npm audit) are in [security/](security/). Highlights: ACL enforced inside retrieval SQL; document text treated as untrusted (delimited, never obeyed, no tools for the model); magic-byte upload validation; rate limits; strict CORS and CSP; deleting a document also scrubs its quotes from stored answers; an agent cannot loosen its own guardrails.
+In private mode the leak paths are closed four ways (boot checks, routing, a runtime safety net, a network with no route to the internet) and the residual risks (keywords reveal a topic, the guard needs good deny lists) are stated in [docs/public-research.md](docs/public-research.md#limits-you-should-know).
 Known gaps are listed honestly in the threat model (JWT in `localStorage`, in-memory rate limits, no malware scanning, admins read everything).
 
 ## 8. Deployment
 
 Target: one AWS EC2 `t3.medium` running [docker-compose.prod.yml](docker-compose.prod.yml) behind Caddy (automatic HTTPS), images from GHCR, built and rolled out by [.github/workflows/deploy.yml](.github/workflows/deploy.yml) after CI is green. Step-by-step: [docs/deployment.md](docs/deployment.md).
+
+Free and private options (your own machine, Tailscale Funnel or Cloudflare Tunnel for EvalOps, a free VM for a demo): [docs/free-deployment.md](docs/free-deployment.md). The private stack ([docker-compose.private.yml](docker-compose.private.yml)) was brought up and verified locally.
 
 > **Status:** the pipeline, compose file and runbook are written and the production images build, but **no public instance was deployed from this repository** (it needs an AWS account, a domain and GitHub secrets that are not part of this codebase). Rubric item "deployed with a working URL" is therefore not claimed.
 
@@ -149,9 +171,9 @@ agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substac
 | 1  | Problem description                          | §1, [product-spec.md](product-spec.md)                                                                                               |
 | 2  | AI-assisted workflow                         | [docs/ai-workflow.md](docs/ai-workflow.md), [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                              |
 | 3  | Technologies and architecture                | §3, [docs/architecture.md](docs/architecture.md), [docs/rag-design.md](docs/rag-design.md)                                            |
-| 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 59 Vitest tests, §5                                                                          |
+| 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 72 Vitest tests, §5                                                                          |
 | 5  | API contract                                 | [openapi.yaml](openapi.yaml), generated client, drift test                                                                            |
-| 6  | Backend (structure, contract, tests)         | `backend/app/`, 167 pytest tests                                                                                                   |
+| 6  | Backend (structure, contract, tests)         | `backend/app/`, 299 pytest tests                                                                                                   |
 | 7  | Database (environments, docs)                | PostgreSQL + pgvector, Alembic, [architecture.md § environments](docs/architecture.md#environments-and-the-database-config-rubric-7) |
 | 8  | Containerisation                             | [docker-compose.yml](docker-compose.yml), multi-stage Dockerfiles, §4                                                                |
 | 9  | Integration tests                            | `backend/tests/integration/`, `e2e/`                                                                                             |

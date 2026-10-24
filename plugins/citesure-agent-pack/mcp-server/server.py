@@ -153,11 +153,14 @@ async def get_chunk(chunk_id: str) -> str:
 
 @mcp.tool(annotations=WRITES_A_RECORD)
 async def ask(question: str) -> str:
-    """Ask CiteSure a question exactly as a user would. Returns the verified claims with their citations, or the refusal,
+    """Ask CiteSure a question about the documents this service user may read (internal scope only: nothing is sent to public
+    sources). Returns the verified claims with their citations, or the refusal,
     plus how many drafted claims verification dropped and per-stage latency. This stores the question in the history."""
     try:
         workspace_id = await client().default_workspace_id()
-        answer = await client().request("POST", "/ask", json={"workspace_id": workspace_id, "question": question})
+        # Always the internal scope: the agent never triggers searches on the public internet, whatever the server default is.
+        body = {"workspace_id": workspace_id, "question": question, "scope": "internal"}
+        answer = await client().request("POST", "/ask", json=body)
     except CiteSureError as error:
         return _fail(error)
     summary: dict[str, Any] = {

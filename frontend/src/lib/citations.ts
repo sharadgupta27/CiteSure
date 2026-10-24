@@ -35,11 +35,35 @@ export function numberCitations(answer: Pick<Answer, "claims">): { claims: Numbe
 }
 
 /** "Parental Leave Policy > How much leave you get (p. 2)" */
-export function describeLocation(citation: Pick<Citation, "document_title" | "heading_path" | "page_start" | "page_end">): string {
+export function describeLocation(
+  citation: Pick<Citation, "document_title" | "heading_path" | "page_start" | "page_end"> & Partial<Pick<Citation, "source_type" | "url">>,
+): string {
+  if (citation.source_type === "public") return `${citation.document_title}${hostOf(citation.url) ? ` · ${hostOf(citation.url)}` : ""}`;
   const section = citation.heading_path.length > 0 ? ` › ${citation.heading_path[citation.heading_path.length - 1]}` : "";
   let page = "";
   if (citation.page_start != null) {
     page = citation.page_end != null && citation.page_end !== citation.page_start ? ` (pp. ${citation.page_start}–${citation.page_end})` : ` (p. ${citation.page_start})`;
   }
   return `${citation.document_title}${section}${page}`;
+}
+
+/** "arxiv.org" for a public citation's address; empty when the address is missing or not a URL. */
+export function hostOf(url: string | null | undefined): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+/** Only http(s) addresses may become links: an `url` from a public source is data, never trusted markup. */
+export function safeHref(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+  } catch {
+    return null;
+  }
 }

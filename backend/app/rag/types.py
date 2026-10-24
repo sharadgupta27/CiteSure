@@ -21,6 +21,9 @@ class ScoredChunk:
     char_start: int
     char_end: int
     score: float = 0.0
+    # "public" passages come from the public lane (papers, web pages). They have no database row: `url` is their address.
+    source_type: Literal["internal", "public"] = "internal"
+    url: str | None = None
 
     def with_score(self, score: float) -> ScoredChunk:
         return replace(self, score=score)

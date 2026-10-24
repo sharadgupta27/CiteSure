@@ -364,6 +364,25 @@ Each phase ends with a commit, a `docs/ai-workflow.md` entry and a Substack chap
 
 ---
 
+### Phase 12: Private mode and public research (added 2026-10-23)
+Requirement: company documents never leave the system; published papers and web pages are still searchable; the EvalOps link keeps working when deployed for free.
+- [x] Local model for the internal lane (`LocalProvider`, any OpenAI-compatible server) and boot checks that refuse a hosted internal model, Voyage embeddings, or a "local" URL on a public address (`PRIVATE_MODE`)
+- [x] Egress guard (PII, secrets, internal addresses, never-share terms, canaries, 6-word copy detection against every stored document, internal names) on the question and on the keyword-only query
+- [x] `EgressClient`: the only HTTP gateway (https only, allow-list or public-only, SSRF checks, redirects re-validated, size cap)
+- [x] Public sources: arXiv, Crossref, OpenAlex, Europe PMC, Semantic Scholar, and an open-web source (Claude web search finds URLs, CiteSure fetches the pages)
+- [x] `scope` on `/ask`, preview endpoint, status endpoint, `egress` and `notices` on every answer; routing (`choose_llm`) and runtime safety net (`ensure_lane_safe`); `answer_v2` prompt for mixed sources
+- [x] UI: scope selector, editable keyword preview, public badges, original-source panel, what-was-sent disclosure
+- [x] Network enforcement: `docker-compose.private.yml` (internal network with no route out, Squid allow-list proxy, Ollama), `deploy/verify-isolation.sh`
+- [x] Tests: guard, client, connectors, local provider, routing, deploy config, 13 integration tests with a planted canary; CI job for the proxy policy
+- [x] Observability: egress metrics, Grafana panels, privacy alerts
+- [x] EvalOps: redacted export for real data, self-host compose with Tailscale Funnel / Cloudflare Tunnel profiles, free deployment guide; verified against a live EvalOps
+- [~] Real-model checks - **NOT RUN**: no API key and no downloaded local model were used. The Claude public lane and the web source are tested with fakes and mock networks; the local model path is tested against a mock server. Run `ollama-pull` and the evaluation with `LLM_PROVIDER=local`, then set `PUBLIC_LLM_PROVIDER=anthropic`, before trusting answer quality
+- [ ] A Playwright test of the public lane - needs live internet; not added
+
+**Rubric:** 3, 13
+
+---
+
 ## 8. Rubric Coverage
 
 | # | Criterion | Where it is satisfied |

@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef, useState, type FormEvent } from "react";
-import { ApiError, type Answer, type Citation } from "../api/client";
-import { keys, useThread, useThreads } from "../api/hooks";
+import { ApiError, type Answer, type AskScope, type Citation } from "../api/client";
+import { keys, usePublicResearchStatus, useThread, useThreads } from "../api/hooks";
 import { streamAsk } from "../api/stream";
 import { useWorkspace } from "../auth/WorkspaceContext";
 import { AnswerView } from "../components/AnswerView";
 import { FeedbackBar } from "../components/FeedbackBar";
+import { ScopePicker } from "../components/ScopePicker";
 import { SourceViewer } from "../components/SourceViewer";
 import { Button, Card, Empty, ErrorBanner, Spinner, inputClass } from "../components/ui";
 import { STAGE_LABELS, initialStreamState, streamReducer } from "../lib/streamReducer";
@@ -26,6 +27,10 @@ export function AskPage() {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [stream, dispatch] = useReducer(streamReducer, initialStreamState);
   const [source, setSource] = useState<Citation | null>(null);
+  const [scope, setScope] = useState<AskScope>("internal");
+  const [publicQuery, setPublicQuery] = useState<string | null>(null);
+  const researchStatus = usePublicResearchStatus();
+  const publicResearch = researchStatus.data?.enabled ? researchStatus.data : null;
   const abort = useRef<AbortController | null>(null);
 
   const threads = useThreads(current?.id);
@@ -50,10 +55,17 @@ export function AskPage() {
       abort.current = controller;
       setAsked(text);
       setQuestion("");
+      setPublicQuery(null);
       dispatch({ type: "start" });
       try {
         await streamAsk(
-          { workspace_id: current.id, question: text.trim(), thread_id: threadId },
+          {
+            workspace_id: current.id,
+            question: text.trim(),
+            thread_id: threadId,
+            // Only a server with the public lane switched on ever sees a scope other than "internal".
+            ...(publicResearch && scope !== "internal" ? { scope, public_query: publicQuery } : {}),
+          },
           { onMessage: (message) => dispatch({ type: "message", message }) },
           controller.signal,
         );
@@ -62,7 +74,7 @@ export function AskPage() {
         dispatch({ type: "failed", error: error instanceof ApiError ? error.message : "The connection was interrupted. Please try again." });
       }
     },
-    [current, threadId],
+    [current, threadId, publicResearch, scope, publicQuery],
   );
 
   // When the stream finishes, move the answer into the conversation and refresh the history list.
@@ -100,13 +112,27 @@ export function AskPage() {
             className={inputClass}
             placeholder="Ask a question about your documents…"
             value={question}
-            onChange={(e) => setQuestion(e.target.value)}
+            onChange={(e) => {
+              setQuestion(e.target.value);
+              setPublicQuery(null); // an approved query belongs to the question it was checked for
+            }}
             disabled={busy}
           />
           <Button type="submit" disabled={busy || question.trim().length < 3}>
             Ask
           </Button>
         </form>
+
+        {publicResearch && (
+          <ScopePicker
+            status={publicResearch}
+            scope={scope}
+            onScope={setScope}
+            question={question}
+            publicQuery={publicQuery}
+            onPublicQuery={setPublicQuery}
+          />
+        )}
 
         {turns.length === 0 && !busy && (
           <Card title="Try asking">

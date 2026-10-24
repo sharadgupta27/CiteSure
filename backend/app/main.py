@@ -56,6 +56,8 @@ def create_app(
         app.state.sessionmaker = sessionmaker
         app.state.providers = providers or build_providers(settings)
         yield
+        if providers is None and app.state.providers.research is not None:
+            await app.state.providers.research.aclose()
         if owns_engine:
             await app.state.engine.dispose()
 

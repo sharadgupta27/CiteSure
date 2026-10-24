@@ -9,6 +9,10 @@ export type Schemas = components["schemas"];
 export type Answer = Schemas["Answer"];
 export type Claim = Schemas["Claim"];
 export type Citation = Schemas["Citation"];
+export type AskScope = Schemas["AskScope"];
+export type EgressRecord = Schemas["EgressRecord"];
+export type PublicResearchStatus = Schemas["PublicResearchStatus"];
+export type PublicQueryPreview = Schemas["PublicQueryPreview"];
 
 export const API_BASE = "/api/v1";
 

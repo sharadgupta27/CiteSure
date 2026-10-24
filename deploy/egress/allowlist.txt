@@ -1,0 +1,8 @@
+# Destinations the API may reach (one per line; a leading dot also allows subdomains).
+# Keep this in step with EGRESS_ALLOW_HOSTS in backend/app/config.py: tests/unit/test_deploy_config.py fails if they differ.
+export.arxiv.org
+api.crossref.org
+api.openalex.org
+www.ebi.ac.uk
+api.semanticscholar.org
+api.anthropic.com

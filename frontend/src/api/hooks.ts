@@ -12,6 +12,7 @@ export const keys = {
   chunk: (chunk: string) => ["chunk", chunk] as const,
   threads: (ws: string) => ["threads", ws] as const,
   thread: (id: string) => ["thread", id] as const,
+  publicResearch: ["public-research"] as const,
   feedback: (ws: string) => ["feedback", ws] as const,
   golden: (ws: string) => ["golden", ws] as const,
   runs: (ws: string) => ["runs", ws] as const,
@@ -163,6 +164,20 @@ export function useThreads(ws: string | undefined) {
     queryKey: keys.threads(ws ?? ""),
     queryFn: async () => unwrap(await api.GET("/threads", { params: { query: { workspace_id: ws! } } })),
     ...idle(ws),
+  });
+}
+/** Whether the public research lane is on, and whether the server runs in private mode. */
+export function usePublicResearchStatus() {
+  return useQuery({
+    queryKey: keys.publicResearch,
+    queryFn: async () => unwrap(await api.GET("/public-research")),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+/** Shows the exact query that would leave the system, and the egress guard's verdict. Sends nothing. */
+export function usePreviewPublicQuery() {
+  return useMutation({
+    mutationFn: async (body: Schemas["PublicQueryPreviewRequest"]) => unwrap(await api.POST("/public-research/preview", { body })),
   });
 }
 export function useThread(id: string | undefined) {

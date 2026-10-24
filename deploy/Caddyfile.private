@@ -1,0 +1,23 @@
+# Front door of the private stack. SITE_ADDRESS=":80" (default) serves plain HTTP, which is fine while the port is bound
+# to 127.0.0.1. Set SITE_ADDRESS to a domain name to get automatic HTTPS (and BIND_ADDRESS=0.0.0.0 to publish it).
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	request_body {
+		max_size 25MB
+	}
+
+	# /metrics is for Prometheus on the internal network only.
+	@internal path /metrics
+	respond @internal 404
+
+	reverse_proxy frontend:8080 {
+		flush_interval -1   # do not buffer Server-Sent Events
+		header_up X-Forwarded-For {remote_host}
+	}
+}

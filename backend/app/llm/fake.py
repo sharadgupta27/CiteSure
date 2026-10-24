@@ -51,6 +51,7 @@ def _sentences(blocks: list[SourceBlock]) -> list[tuple[SourceBlock, str, set[st
 
 
 class FakeProvider:
+    hosted = False
     answer_model = "fake-answer"
     verify_model = "fake-verify"
 

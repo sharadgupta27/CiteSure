@@ -70,3 +70,34 @@ groups:
         for: 15m
         labels: { severity: warning }
         annotations: { summary: "p95 answer generation latency is above 8 seconds" }
+
+  - name: citesure-privacy
+    rules:
+      # The guard exists so that nothing sensitive leaves. A burst of blocks means someone is pasting internal text into
+      # public questions (train them, or review the deny list); a canary block means a planted marker string was found in
+      # outbound text, which is the signal that something tried to move company text out.
+      - alert: EgressBlocksSpike
+        expr: sum(increase(citesure_egress_decisions_total{decision="blocked"}[30m])) > 20
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 20 public-research questions were blocked by the egress guard in 30 minutes"
+          description: "Check which reason codes dominate in the API logs (`egress blocked ... reasons=`); never the text, only the codes."
+
+      - alert: EgressDeniedByClient
+        expr: sum(increase(citesure_egress_requests_total{outcome=~"denied:.*"}[15m])) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "The egress client refused an outbound request (host not allowed or private address)"
+          description: >-
+            A connector tried to reach a host outside the allow-list. That is either a configuration drift (a new source
+            without an allow-list entry) or code trying to go somewhere it must not. Inspect `egress denied` log lines.
+
+      - alert: PublicSourcesUnreachable
+        expr: sum(increase(citesure_egress_requests_total{outcome="error"}[15m])) > 10
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: "Public research requests are failing (the egress proxy or the scholarly APIs are down)"
+          description: "Nothing leaks when this happens; public searches just return fewer sources. Check `docker compose logs egress-proxy`."

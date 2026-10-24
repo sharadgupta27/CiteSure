@@ -25,7 +25,7 @@ If you need to separate "manages the collection" from "reads the content", add a
 | `search_corpus` | `GET /retrieval/explain`, `GET /chunks/{id}` | member | yes (clipped to 1200 chars) | no | ACL-filtered by the API |
 | `get_chunk` | `GET /chunks/{id}` | member | yes (clipped to 4000 chars) | no | 404 if not readable |
 | `explain_retrieval` | `GET /retrieval/explain` | member | snippets (160 chars) | no | shows scores per stage |
-| `ask` | `POST /ask` | member | yes (verified claims) | one `answers` row + a thread | rate limited (30/min) |
+| `ask` | `POST /ask` (always `scope: internal`) | member | yes (verified claims) | one `answers` row + a thread | rate limited (30/min); never searches the public internet, whatever `DEFAULT_SCOPE` is |
 | `run_eval` | `POST /workspaces/{id}/eval-runs`, `GET /eval-runs/{id}` | **admin** | no | one `eval_runs` row | a plain-member agent gets 403: that is intended |
 | resource `citesure://documents/{id}` | `GET /documents/{id}`, `/chunks` | member | yes (first 50 chunks, clipped) | no | |
 
@@ -62,6 +62,8 @@ Verified live (see `docs/demo.md`): as `agent@`, `list_collections` shows only `
 
 Agents (and the models behind them) receive chunk text and answers for documents the service user can read. That is *exactly* the data a human colleague with that account could read.
 Do not point a hosted coding agent at a workspace whose documents your policy forbids sending to that vendor: see `security/ai-data-policy.md`.
+
+**Private mode does not cover the agent.** The server keeps company text away from hosted *answer* models, but a coding agent that calls `ask` or `get_chunk` reads that text in its own vendor's model. In a private deployment give the agent no service account, or point it at a workspace that holds only non-sensitive documents.
 
 ## Prompt-injection stance for agents
 

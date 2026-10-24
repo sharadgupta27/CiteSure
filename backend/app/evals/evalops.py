@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app.config import get_settings
 from app.rag.text import normalise_ws
 from app.services.eval_runner import ItemResult
 
@@ -46,18 +47,25 @@ def case_score(item: ItemResult) -> float:
     return round(item.scores.get("correctness", 0.0), 4) if item.outcome.status == "answered" else 0.0
 
 
-def case_output(item: ItemResult) -> str:
+REDACTED = "[redacted]"
+
+
+def case_output(item: ItemResult, *, redact: bool = False) -> str:
+    """The answer text EvalOps stores. With `redact`, only the outcome: the gate needs pass/fail, score and latency,
+    not the words, so real company answers need never leave the system that produced them."""
     if item.outcome.status == "refused":
         return "[refused]"
+    if redact:
+        return "[answered]"
     return " ".join(claim.text for claim in item.outcome.claims)
 
 
-def to_ingest_results(items: list[ItemResult]) -> list[dict[str, Any]]:
+def to_ingest_results(items: list[ItemResult], *, redact: bool = False) -> list[dict[str, Any]]:
     """The `results` array of EvalOps' POST /gate/ingest."""
     return [
         {
             "case_ref": case_ref(item.golden.question),
-            "output": case_output(item)[:MAX_OUTPUT_CHARS],
+            "output": case_output(item, redact=redact)[:MAX_OUTPUT_CHARS],
             "passed": case_passed(item),
             "score": case_score(item),
             "latency_ms": round(sum(item.outcome.timings.values()), 1),
@@ -70,15 +78,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Export the golden set as an EvalOps dataset import file (JSONL).")
     parser.add_argument("--export-dataset", type=Path, required=True)
     parser.add_argument("--golden", type=Path, default=Path(__file__).resolve().parents[2] / "evals" / "golden.jsonl")
+    parser.add_argument(
+        "--redact",
+        action="store_true",
+        help="replace question and reference-answer text with placeholders (implied by PRIVATE_MODE=true)",
+    )
     args = parser.parse_args()
-    rows = golden_to_dataset_rows(args.golden.read_text(encoding="utf-8").splitlines())
+    redact = args.redact or get_settings().private_mode
+    rows = golden_to_dataset_rows(args.golden.read_text(encoding="utf-8").splitlines(), redact=redact)
     args.export_dataset.write_text("\n".join(rows) + "\n", encoding="utf-8")
     print(f"wrote {len(rows)} cases to {args.export_dataset}")
     return 0
 
 
-def golden_to_dataset_rows(golden_lines: list[str]) -> list[str]:
-    """JSONL for EvalOps' dataset import: `case_ref` is what ties a result back to its case."""
+def golden_to_dataset_rows(golden_lines: list[str], *, redact: bool = False) -> list[str]:
+    """JSONL for EvalOps' dataset import: `case_ref` is what ties a result back to its case.
+
+    With `redact`, the question and reference answer are placeholders. The `case_ref` is a truncated hash, so the
+    questions themselves stay on this side; the tags remain so EvalOps can still show results by category."""
     rows = []
     for line in golden_lines:
         if not line.strip():
@@ -87,8 +104,12 @@ def golden_to_dataset_rows(golden_lines: list[str]) -> list[str]:
         rows.append(
             json.dumps(
                 {
-                    "inputs": {"case_ref": case_ref(item["question"]), "question": item["question"]},
-                    "expected_output": item["expected_answer"] or "[refused]",
+                    "inputs": {
+                        "case_ref": case_ref(item["question"]),
+                        "question": REDACTED if redact else item["question"],
+                    },
+                    "expected_output": (REDACTED if redact and item["expected_answer"] else item["expected_answer"])
+                    or "[refused]",
                     "tags": item.get("tags", []),
                 },
                 ensure_ascii=False,

@@ -326,3 +326,43 @@ def test_publish_requires_a_key_and_an_http_url(cases_file: Path, monkeypatch: p
         "sys.argv", ["publish", str(cases_file), "--url", "file:///etc/passwd", "--dataset-id", "5", "--head-label", "x"]
     )
     assert script.main() == 2
+
+
+# --- redaction: what EvalOps stores when the corpus is real company data ---------------------------------------------
+def test_redacted_results_carry_the_verdict_but_no_answer_text() -> None:
+    [row] = to_ingest_results([item(question="What is the Phoenix churn formula?")], redact=True)
+    assert row["output"] == "[answered]"
+    assert row["passed"] is True and row["score"] == 1.0 and row["latency_ms"] == 42.5
+    assert "16 weeks" not in json.dumps(row)
+    # a refusal says nothing about content, so it is reported as it is
+    assert to_ingest_results([item(status="refused")], redact=True)[0]["output"] == "[refused]"
+
+
+def test_redacted_dataset_rows_hide_questions_and_reference_answers_but_keep_the_key_and_tags() -> None:
+    lines = GOLDEN.read_text(encoding="utf-8").splitlines()
+    plain = [json.loads(r) for r in golden_to_dataset_rows(lines)]
+    hidden = [json.loads(r) for r in golden_to_dataset_rows(lines, redact=True)]
+    assert [r["inputs"]["case_ref"] for r in hidden] == [
+        r["inputs"]["case_ref"] for r in plain
+    ]  # same keys: results still match
+    assert [r["tags"] for r in hidden] == [r["tags"] for r in plain]
+    assert {r["inputs"]["question"] for r in hidden} == {"[redacted]"}
+    assert {r["expected_output"] for r in hidden} <= {"[redacted]", "[refused]"}
+    questions = {json.loads(line)["question"] for line in lines if line.strip()}
+    assert not questions & {r["inputs"]["question"] for r in hidden}
+
+
+def test_private_mode_redacts_the_dataset_export_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import get_settings
+    from app.evals.evalops import main
+
+    monkeypatch.setenv("PRIVATE_MODE", "true")
+    get_settings.cache_clear()
+    out = tmp_path / "dataset.jsonl"
+    monkeypatch.setattr("sys.argv", ["evalops", "--export-dataset", str(out)])
+    try:
+        assert main() == 0
+    finally:
+        get_settings.cache_clear()
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    assert rows and {r["inputs"]["question"] for r in rows} == {"[redacted]"}

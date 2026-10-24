@@ -28,10 +28,21 @@ class ModelRefused(Exception):
 
 
 class AnthropicProvider:
-    def __init__(self, settings: Settings) -> None:
+    """A hosted model. In private mode it is the PUBLIC lane's model only: it is built with the egress proxy and is
+    never handed company text (services/pipeline.py `choose_llm` is the single place that decides)."""
+
+    hosted = True
+
+    def __init__(self, settings: Settings, proxy_url: str = "") -> None:
         if not settings.anthropic_api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic")
-        self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, max_retries=3, timeout=60.0)
+            raise RuntimeError("ANTHROPIC_API_KEY is required for the Anthropic provider")
+        http_options: dict[str, Any] = {"proxy": proxy_url, "trust_env": False} if proxy_url else {}
+        self._client = anthropic.AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+            max_retries=3,
+            timeout=60.0,
+            http_client=anthropic.DefaultAsyncHttpxClient(**http_options) if http_options else None,
+        )
         self.answer_model = settings.answer_model
         self.verify_model = settings.verify_model
         self._answer_tokens = settings.max_answer_tokens

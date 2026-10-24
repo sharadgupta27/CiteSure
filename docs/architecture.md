@@ -20,7 +20,7 @@
                          │ embed → index; eval runs   │             │ jobs, answers, feedback, │
                          └────────────────────────────┘             │ golden set, eval runs    │
                                                                     └──────────────────────────┘
-   Providers behind interfaces:  LLMProvider (Anthropic | Fake)    Embedder (fastembed | Voyage | Fake)
+   Providers behind interfaces:  LLMProvider (Local | Anthropic | Fake)    Embedder (fastembed | Voyage | Fake)
                                  Reranker (cross-encoder | lexical | none)    BlobStore (local | S3)
 ```
 
@@ -34,7 +34,7 @@
 | RAG core | `app/rag/{parsing,chunking,retrieval,generation,verification}` | Pure, swappable stages with typed inputs and outputs. |
 | Database | PostgreSQL 16 + pgvector (HNSW index) + full-text (GIN index) | Documents, chunks (embedding + `tsvector`), ACLs, jobs, answers, feedback, evaluation. One database for everything. |
 | Background work | A `jobs` table polled with `FOR UPDATE SKIP LOCKED` | Ingestion, reindexing and evaluation run in the worker, never in a request handler. |
-| LLM | Anthropic SDK behind `LLMProvider` (`ANSWER_MODEL`, `VERIFY_MODEL`) | Structured outputs (JSON schema) for claims and verdicts. A deterministic fake is the default for dev and tests. |
+| LLM | `LLMProvider`: a local model (`LocalProvider`, any OpenAI-compatible server) for company text, the Anthropic SDK (`ANSWER_MODEL`, `VERIFY_MODEL`) for public text or non-private setups | Structured outputs (JSON schema) for claims and verdicts. A deterministic fake is the default for dev and tests. |
 | Embeddings | `fastembed` ONNX locally (default); Voyage optional | 384-dimension vectors. |
 | Containers | Docker, Docker Compose (`api`, `worker`, `frontend`, `db`, one-shot `migrate`) | One command runs everything. Multi-stage images, non-root user, health checks. |
 | CI/CD | GitHub Actions | `ci.yml` (lint, types, unit, integration, E2E, security scans, image build), `rag-eval.yml` (quality gate), `deploy.yml` (GHCR + EC2 after green CI). |
@@ -51,6 +51,33 @@
 5. Verify every claim: the quote must be found in the cited chunk (fuzzy, ≥ 0.9), then a cheaper model must judge the claim `supported` by the evidence window. Others are dropped.
 6. If any claim survives → `answered` with real chunk ids and quote offsets; else `refused` with the closest readable documents.
 7. Persist the answer (config snapshot, per-stage latency, tokens, cost); stream `stage` events during, `token` events after verification, then `final`.
+
+## Two lanes: company documents and published research
+
+`POST /ask` takes a `scope`: `internal` (default), `public` or `both`. Details: [public-research.md](public-research.md); deployment: [private-deployment.md](private-deployment.md).
+
+```text
+question ─▶ internal lane: ACL ─▶ hybrid retrieve ─▶ rerank ──────────────┐
+        │                                                                  ├─▶ sources S1..Sn ─▶ choose_llm ─▶ generate ─▶ verify ─▶ answer
+        └─▶ public lane: egress guard ─▶ keywords ─▶ guard ─▶ EgressClient ─┘          │
+                          (question)      (<= 8 words)      │  arXiv, Crossref, OpenAlex, Europe PMC, web
+                                                            ▼
+                                               allow-list proxy (the only route out)
+choose_llm: any company text  ─▶ internal model (local in private mode)
+            public text only + question cleared by the guard ─▶ public model (Claude)
+```
+
+| Piece | File |
+|---|---|
+| Scope, routing, the safety net | `services/pipeline.py` (`choose_llm`, `ensure_lane_safe`) |
+| What may leave | `egress/guard.py`; the guard's view of the documents `egress/corpus.py` |
+| The only way out | `egress/client.py` (https only, allow-list or public-only, SSRF checks, size cap, redirects re-validated) |
+| Sources | `research/connectors.py` (parsers are pure functions), `research/web.py`, orchestration `research/service.py` |
+| Local model | `llm/local_provider.py` (any OpenAI-compatible server: Ollama, vLLM, llama.cpp) |
+| Boot-time guarantees | `config.py: assert_private_mode_consistent` |
+| Network guarantees | `docker-compose.private.yml`, `deploy/egress/` |
+
+Public passages are `ScoredChunk`s with `source_type="public"` and a `url`, so the existing generation and verification stages work unchanged; they have no database row, so stored answers keep their public citations without an ACL re-check.
 
 ## Request flow: upload
 
@@ -79,9 +106,9 @@ Never edit an applied migration; create a new one (`uv run alembic revision --au
 ## Repository layout
 
 ```text
-backend/app/{api,services,repositories,rag,llm,embeddings,storage,worker,evals}   backend/{migrations,tests,evals}
+backend/app/{api,services,repositories,rag,llm,embeddings,egress,research,storage,worker,evals}   backend/{migrations,tests,evals}
 frontend/src/{api,auth,components,pages,lib}       e2e/        corpus/        openapi.yaml
-docker-compose.yml  docker-compose.prod.yml  deploy/Caddyfile  ops/  security/  docs/
+docker-compose.yml  docker-compose.prod.yml  docker-compose.private.yml  deploy/{Caddyfile,Caddyfile.private,egress/,verify-isolation.*}  ops/  security/  docs/
 agent-capabilities/ agent-hooks/ mcp-server/ plugins/ custom-agent/   substack/
 ```
 
