@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AskScope, PublicQueryPreview, PublicResearchStatus } from "../api/client";
 import { usePreviewPublicQuery } from "../api/hooks";
+import { Icon, type IconName } from "./Icon";
 import { Button, ErrorBanner, inputClass } from "./ui";
 
 interface Props {
@@ -13,10 +14,10 @@ interface Props {
   onPublicQuery: (query: string | null) => void;
 }
 
-const OPTIONS: { value: AskScope; label: string; hint: string }[] = [
-  { value: "internal", label: "Company documents", hint: "Nothing leaves the system." },
-  { value: "public", label: "Published research", hint: "Papers and web pages only. Your documents are not used." },
-  { value: "both", label: "Both", hint: "Your documents plus published research, answered on this system." },
+const OPTIONS: { value: AskScope; label: string; hint: string; icon: IconName }[] = [
+  { value: "internal", label: "Company documents", hint: "Nothing leaves the system.", icon: "lock" },
+  { value: "public", label: "Published research", hint: "Papers and web pages only. Your documents are not used.", icon: "globe" },
+  { value: "both", label: "Both", hint: "Your documents plus published research, answered on this system.", icon: "sparkle" },
 ];
 
 /** Chooses where an answer may draw from, and lets the user see (and edit) exactly what would leave before it does. */
@@ -34,15 +35,19 @@ export function ScopePicker({ status, scope, onScope, question, publicQuery, onP
   }
 
   return (
-    <fieldset className="space-y-2 rounded-md border border-slate-200 bg-white p-3" data-testid="scope-picker">
-      <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Where to look</legend>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
+    <fieldset className="space-y-2" data-testid="scope-picker">
+      <legend className="sr-only">Where to look</legend>
+      <div className="inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
         {OPTIONS.map((option) => (
-          <label key={option.value} className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-700">
+          <label
+            key={option.value}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 has-[:checked]:bg-white has-[:checked]:text-indigo-700 has-[:checked]:shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-500"
+          >
             <input
               type="radio"
               name="scope"
               value={option.value}
+              className="sr-only"
               checked={scope === option.value}
               onChange={() => {
                 onScope(option.value);
@@ -50,6 +55,7 @@ export function ScopePicker({ status, scope, onScope, question, publicQuery, onP
                 setShown(null);
               }}
             />
+            <Icon name={option.icon} className="h-3.5 w-3.5" />
             {option.label}
           </label>
         ))}

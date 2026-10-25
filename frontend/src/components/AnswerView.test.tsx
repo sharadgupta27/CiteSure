@@ -22,6 +22,16 @@ describe("AnswerView", () => {
     expect(screen.getByText(/Every citation was checked/)).toBeInTheDocument();
   });
 
+  it("still renders an answer from a server that predates notices and egress", () => {
+    const legacy: Partial<ReturnType<typeof answer>> = answer();
+    delete legacy.notices;
+    delete legacy.egress;
+    render(<AnswerView answer={legacy as ReturnType<typeof answer>} onOpenSource={() => undefined} />);
+    expect(screen.getByText(/Primary caregivers receive 16 weeks/)).toBeInTheDocument();
+    expect(screen.queryByTestId("notices")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("egress")).not.toBeInTheDocument();
+  });
+
   it("opens the matching source when a chip is clicked", async () => {
     const onOpenSource = vi.fn();
     const second = citation({ chunk_id: "b", document_title: "Benefits" });

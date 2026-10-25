@@ -11,13 +11,14 @@ interface Props {
 export function AnswerView({ answer, onOpenSource }: Props) {
   return (
     <div className="space-y-3">
-      <Notices notices={answer.notices} />
+      {/* A server from before the public-research lane omits notices and egress: treat them as empty rather than crash. */}
+      <Notices notices={answer.notices ?? []} />
       {answer.status === "refused" || answer.claims.length === 0 ? (
         <Refusal answer={answer} onOpenSource={onOpenSource} />
       ) : (
         <Claims answer={answer} onOpenSource={onOpenSource} />
       )}
-      <EgressDisclosure egress={answer.egress} />
+      <EgressDisclosure egress={answer.egress ?? []} />
     </div>
   );
 }

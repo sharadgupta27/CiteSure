@@ -1,7 +1,27 @@
 @import "tailwindcss";
 
-:root {
-  --brand: #4f46e5;
+/* System fonts only: a private-mode deployment should not fetch anything from a third party just to render. */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -8px rgb(15 23 42 / 0.12);
+  --shadow-glow: 0 0 0 1px rgb(99 102 241 / 0.08), 0 20px 50px -20px rgb(79 70 229 / 0.35);
+  --animate-rise: rise 0.35s ease-out both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 html,
@@ -11,11 +31,37 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  @apply bg-white text-slate-800 antialiased;
+  font-family: var(--font-sans);
+}
+
+/* A soft aurora behind the hero, in the spirit of bolt.new's glow but light enough for a reading app. */
+.aurora {
+  background:
+    radial-gradient(60% 55% at 15% 0%, rgb(99 102 241 / 0.22), transparent 70%),
+    radial-gradient(50% 50% at 90% 10%, rgb(14 165 233 / 0.18), transparent 70%),
+    radial-gradient(45% 45% at 55% 30%, rgb(168 85 247 / 0.14), transparent 70%);
+}
+
+.dot-grid {
+  background-image: radial-gradient(rgb(100 116 139 / 0.18) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(70% 60% at 50% 0%, #000, transparent 75%);
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent;
+  background-image: linear-gradient(100deg, #4338ca 0%, #6366f1 45%, #0ea5e9 100%);
 }
 
 /* The highlighted words of a citation in the source viewer. */
 mark.cite {
   @apply rounded bg-amber-200 px-0.5 text-slate-900;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

@@ -17,7 +17,7 @@ export function QualityPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">Quality</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Quality</h1>
       <p className="max-w-3xl text-sm text-slate-600">
         Every run asks the {golden.data?.length ?? "…"} golden questions and scores retrieval, citations and refusals. Change a setting, run again, and compare:
         a change is only an improvement if the numbers say so.

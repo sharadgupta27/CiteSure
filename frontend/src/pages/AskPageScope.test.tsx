@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { setAuthToken } from "../api/client";
 import { answer } from "../test/factories";
 import { AskPage } from "./AskPage";
@@ -42,7 +43,9 @@ function renderPage() {
   setAuthToken("tok");
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <AskPage />
+      <MemoryRouter>
+        <AskPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }

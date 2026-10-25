@@ -8,7 +8,7 @@ export function WorkspacePage() {
   if (!current) return null;
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">Workspace: {current.name}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Workspace: {current.name}</h1>
       <p className="max-w-3xl text-sm text-slate-600">
         Access control lives here. A collection is either open to every member, or restricted to groups. People who are not allowed to read a
         collection never see its documents, and the assistant never retrieves them for those people.

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useCollections, useDeleteDocument, useDocuments, useReindexDocument, useUploadDocument } from "../api/hooks";
 import { useWorkspace } from "../auth/WorkspaceContext";
+import { Icon } from "../components/Icon";
 import { Badge, Button, Card, Empty, ErrorBanner, Spinner } from "../components/ui";
 
 export function DocumentsPage() {
@@ -16,7 +17,7 @@ export function DocumentsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-900">Documents</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Documents</h1>
       <ErrorBanner error={collections.error} />
       {collections.isLoading && <Spinner />}
       {collections.data?.length === 0 && <Empty>No collections yet. {isAdmin ? "Create one on the Workspace page." : "Ask an admin to create one."}</Empty>}
@@ -28,7 +29,7 @@ export function DocumentsPage() {
             role="tab"
             aria-selected={c.id === selected}
             onClick={() => setSelected(c.id)}
-            className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${c.id === selected ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+            className={`flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${c.id === selected ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
           >
             {c.name}
             <Badge value={c.visibility} />
@@ -48,6 +49,7 @@ function CollectionDocuments({ collectionId, canEdit }: { collectionId: string; 
   const reindex = useReindexDocument(collectionId);
   const input = useRef<HTMLInputElement>(null);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
 
   async function onFiles(files: FileList | null) {
     if (!files) return;
@@ -77,6 +79,24 @@ function CollectionDocuments({ collectionId, canEdit }: { collectionId: string; 
         )
       }
     >
+      {canEdit && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            void onFiles(e.dataTransfer.files);
+          }}
+          className={`mb-4 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-sm transition-colors ${dragging ? "border-indigo-400 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-slate-50/60 text-slate-500"}`}
+        >
+          <Icon name="upload" className="h-4 w-4" />
+          Drop files here, or use the button above. PDF, DOCX, Markdown, HTML or text.
+        </div>
+      )}
       {uploadErrors.map((message) => (
         <ErrorBanner key={message} error={new Error(message)} />
       ))}
