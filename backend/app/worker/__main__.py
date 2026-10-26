@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.db import make_engine, make_sessionmaker
 from app.observability import setup_tracing
 from app.providers import build_providers
+from app.worker import inbox_watcher
 from app.worker.runner import run_forever
 
 
@@ -22,9 +23,14 @@ async def main() -> None:
     # The worker is a separate process, so its counters (documents ingested, queue depth) need their own /metrics port.
     start_http_server(int(os.environ.get("WORKER_METRICS_PORT", "9100")))
     engine = make_engine(settings.database_url)
+    sessionmaker = make_sessionmaker(engine)
+    providers = build_providers(settings)
+    # phase 2: the watched-folder inbox runs next to the job loop (it returns at once when INBOX_ROOT is empty)
+    inbox_task = asyncio.create_task(inbox_watcher.run_forever(sessionmaker, providers, settings))
     try:
-        await run_forever(make_sessionmaker(engine), build_providers(settings), settings)
+        await run_forever(sessionmaker, providers, settings)
     finally:
+        inbox_task.cancel()
         await engine.dispose()
 
 

@@ -101,10 +101,14 @@ export function Layout() {
         <nav className={`mt-4 flex-1 space-y-1 overflow-y-auto px-3 ${collapsed ? "lg:px-2" : ""}`} aria-label="Main">
           <NavItem to="/ask" icon="ask" label="Ask" collapsed={collapsed} onNavigate={close} />
           <NavItem to="/documents" icon="documents" label="Documents" collapsed={collapsed} onNavigate={close} />
+          <NavItem to="/learn" icon="learn" label="Learn" collapsed={collapsed} onNavigate={close} />
           {isAdmin && (
             <>
               <p className={`px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${collapsed ? "lg:hidden" : ""}`}>Admin</p>
               <NavItem to="/workspace" icon="workspace" label="Workspace" collapsed={collapsed} onNavigate={close} />
+              <NavItem to="/inbox" icon="inbox" label="Inbox" collapsed={collapsed} onNavigate={close} />
+              <NavItem to="/dashboard" icon="dashboard" label="Dashboard" collapsed={collapsed} onNavigate={close} />
+              <NavItem to="/audit" icon="audit" label="Audit log" collapsed={collapsed} onNavigate={close} />
               <NavItem to="/feedback" icon="feedback" label="Feedback" collapsed={collapsed} onNavigate={close} />
               <NavItem to="/quality" icon="quality" label="Quality" collapsed={collapsed} onNavigate={close} />
             </>

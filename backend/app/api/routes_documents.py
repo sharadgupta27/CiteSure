@@ -5,9 +5,12 @@ import uuid
 from fastapi import APIRouter, Depends, File, Response, UploadFile
 
 from app.api.deps import current_user, document_service, get_settings
+from app.api.deps_admin import audit_log
 from app.config import Settings
 from app.errors import PayloadTooLarge
 from app.schemas import api as s
+from app.services import audit as audit_actions
+from app.services.audit import AuditLog
 from app.services.documents import DocumentService
 
 router = APIRouter(tags=["documents"])
@@ -29,11 +32,20 @@ async def upload_document(
     user: s.User = Depends(current_user),
     svc: DocumentService = Depends(document_service),
     settings: Settings = Depends(get_settings),
+    audit: AuditLog = Depends(audit_log),
 ) -> s.Document:
     data = await file.read(settings.max_upload_bytes + 1)  # never buffer more than the limit plus one byte
     if len(data) > settings.max_upload_bytes:
         raise PayloadTooLarge(f"Files can be at most {settings.max_upload_mb} MB")
-    return await svc.upload(user.id, collection_id, file.filename or "document", data)
+    document = await svc.upload(user.id, collection_id, file.filename or "document", data)
+    await audit.record(
+        user,
+        audit_actions.DOCUMENT_UPLOAD,
+        f"document:{document.id}",
+        await audit.workspace_of("collection", collection_id),
+        {"bytes": len(data), "mime": document.mime, "sha256": document.sha256},
+    )
+    return document
 
 
 @router.get("/documents/{document_id}", operation_id="getDocument", response_model=s.Document)
@@ -45,17 +57,29 @@ async def get_document(
 
 @router.delete("/documents/{document_id}", operation_id="deleteDocument", status_code=204)
 async def delete_document(
-    document_id: uuid.UUID, user: s.User = Depends(current_user), svc: DocumentService = Depends(document_service)
+    document_id: uuid.UUID,
+    user: s.User = Depends(current_user),
+    svc: DocumentService = Depends(document_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> Response:
+    workspace_id = await audit.workspace_of("document", document_id)  # the row is gone after the delete
     await svc.delete(user.id, document_id)
+    await audit.record(user, audit_actions.DOCUMENT_DELETE, f"document:{document_id}", workspace_id)
     return Response(status_code=204)
 
 
 @router.post("/documents/{document_id}/reindex", operation_id="reindexDocument", status_code=202, response_model=s.Document)
 async def reindex_document(
-    document_id: uuid.UUID, user: s.User = Depends(current_user), svc: DocumentService = Depends(document_service)
+    document_id: uuid.UUID,
+    user: s.User = Depends(current_user),
+    svc: DocumentService = Depends(document_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> s.Document:
-    return await svc.reindex(user.id, document_id)
+    document = await svc.reindex(user.id, document_id)
+    await audit.record(
+        user, audit_actions.DOCUMENT_REINDEX, f"document:{document_id}", await audit.workspace_of("document", document_id)
+    )
+    return document
 
 
 @router.get("/documents/{document_id}/file", operation_id="getDocumentFile", response_class=Response)

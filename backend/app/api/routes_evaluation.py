@@ -6,7 +6,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.api.deps import current_user, evaluation_service
+from app.api.deps_admin import audit_log
 from app.schemas import api as s
+from app.services import audit as audit_actions
+from app.services.audit import AuditLog
 from app.services.evaluation import EvaluationService
 
 router = APIRouter(tags=["evaluation"])
@@ -32,8 +35,13 @@ async def create_golden(
     body: s.GoldenQuestionCreate,
     user: s.User = Depends(current_user),
     svc: EvaluationService = Depends(evaluation_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> s.GoldenQuestion:
-    return await svc.create_golden(user.id, workspace_id, body)
+    golden = await svc.create_golden(user.id, workspace_id, body)
+    await audit.record(
+        user, audit_actions.GOLDEN_CREATE, f"golden:{golden.id}", workspace_id, {"answerable": golden.answerable}
+    )
+    return golden
 
 
 @router.post(
@@ -48,8 +56,17 @@ async def promote_feedback(
     body: s.PromoteFeedbackRequest,
     user: s.User = Depends(current_user),
     svc: EvaluationService = Depends(evaluation_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> s.GoldenQuestion:
-    return await svc.promote_feedback(user.id, workspace_id, feedback_id, body)
+    golden = await svc.promote_feedback(user.id, workspace_id, feedback_id, body)
+    await audit.record(
+        user,
+        audit_actions.GOLDEN_PROMOTE,
+        f"golden:{golden.id}",
+        workspace_id,
+        {"feedback_id": str(feedback_id), "answerable": golden.answerable},
+    )
+    return golden
 
 
 @router.patch("/golden-questions/{golden_id}", operation_id="updateGoldenQuestion", response_model=s.GoldenQuestion)
@@ -58,15 +75,23 @@ async def update_golden(
     body: s.GoldenQuestionUpdate,
     user: s.User = Depends(current_user),
     svc: EvaluationService = Depends(evaluation_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> s.GoldenQuestion:
-    return await svc.update_golden(user.id, golden_id, body)
+    golden = await svc.update_golden(user.id, golden_id, body)
+    await audit.record(user, audit_actions.GOLDEN_UPDATE, f"golden:{golden_id}", golden.workspace_id)
+    return golden
 
 
 @router.delete("/golden-questions/{golden_id}", operation_id="deleteGoldenQuestion", status_code=204)
 async def delete_golden(
-    golden_id: uuid.UUID, user: s.User = Depends(current_user), svc: EvaluationService = Depends(evaluation_service)
+    golden_id: uuid.UUID,
+    user: s.User = Depends(current_user),
+    svc: EvaluationService = Depends(evaluation_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> Response:
+    workspace_id = await audit.workspace_of("golden", golden_id)  # the row is gone after the delete
     await svc.delete_golden(user.id, golden_id)
+    await audit.record(user, audit_actions.GOLDEN_DELETE, f"golden:{golden_id}", workspace_id)
     return Response(status_code=204)
 
 
@@ -83,8 +108,22 @@ async def create_run(
     body: s.EvalRunCreate,
     user: s.User = Depends(current_user),
     svc: EvaluationService = Depends(evaluation_service),
+    audit: AuditLog = Depends(audit_log),
 ) -> s.EvalRun:
-    return await svc.create_run(user.id, workspace_id, body)
+    run = await svc.create_run(user.id, workspace_id, body)
+    await audit.record(
+        user,
+        audit_actions.EVAL_RUN,
+        f"eval_run:{run.id}",
+        workspace_id,
+        {
+            "retrieval_mode": body.config.retrieval_mode,
+            "rerank": body.config.rerank,
+            "candidate_k": body.config.candidate_k,
+            "top_k": body.config.top_k,
+        },
+    )
+    return run
 
 
 # Declared before /eval-runs/{run_id} so "compare" is not parsed as a run id.

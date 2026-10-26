@@ -292,6 +292,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/annotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /** The caller's own highlights and notes on a document (never anyone else's) */
+        get: operations["listAnnotations"];
+        put?: never;
+        /** Save a highlight (with an optional note) on a document the caller can read */
+        post: operations["createAnnotation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/annotations/{annotation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one of the caller's annotations */
+        delete: operations["deleteAnnotation"];
+        options?: never;
+        head?: never;
+        /** Change the note or colour of one of the caller's annotations */
+        patch: operations["updateAnnotation"];
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Watched-folder status for a workspace (admin only)
+         * @description Layout on the server is `<INBOX_ROOT>/<workspace folder>/<collection name>/<file>`. The collection folder decides
+         *     who can read the file: it gets that collection's access rules. A file whose folder matches no collection is
+         *     quarantined, never imported with a guessed or broader audience.
+         */
+        get: operations["getInboxStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/inbox/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Recent imports, quarantined and failed files for a workspace (admin only) */
+        get: operations["listInboxItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/inbox/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask the worker to scan the watched folders now (admin only) */
+        post: operations["requestInboxScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ask": {
         parameters: {
             query?: never;
@@ -371,6 +473,56 @@ export interface paths {
          *     `public_query` on `/ask` to send exactly that.
          */
         post: operations["previewPublicQuery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/research/fulltext": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add the open-access full text of a published paper to the public cache
+         * @description Identifies the paper from a public citation address (a DOI, arXiv, Europe PMC or OpenAlex link) or a DOI, then
+         *     finds a legal open-access PDF, downloads it through the egress guard and allow-listed hosts, and stores its
+         *     passages as **public** text, separate from every document and collection. The download runs in the worker: poll
+         *     `getFullTextStatus` until `ready` or `failed`. A paper already in the cache is `ready` immediately and costs
+         *     nothing. Afterwards, questions with scope `public` or `both` can cite page-numbered passages from the paper.
+         *
+         *     Only a public identifier leaves the system, never question or document text. Each workspace has a daily
+         *     download budget (`FULLTEXT_DAILY_FETCHES`); over budget the reply is `429` with code `fulltext_budget_exceeded`
+         *     and a message that says so. `422` means the feature is off or the address names no paper.
+         */
+        post: operations["requestFullText"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/research/fulltext/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Progress of a full-text request
+         * @description Only the user who made the request can read it; anyone else gets `404`.
+         */
+        get: operations["getFullTextStatus"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -607,6 +759,397 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /** The caller's reading progress in a document (zeros if never opened) */
+        get: operations["getReadingProgress"];
+        /**
+         * Report the page being read and mark pages as read
+         * @description Pages only accumulate. With a known page count the percent is pages read / pages; otherwise it is the
+         *     furthest position the client reported (documents without pages). Every call counts as opening the document.
+         */
+        put: operations["updateReadingProgress"];
+        post?: never;
+        /** Forget the caller's progress in a document */
+        delete: operations["resetReadingProgress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/reading-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Documents the caller has opened, most recent first (only documents they may still read) */
+        get: operations["listReadingProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/study-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The caller's study sets in a workspace */
+        get: operations["listStudySets"];
+        put?: never;
+        /** Create a study set (a private reading list; it grants no access to anything) */
+        post: operations["createStudySet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/study-sets/{study_set_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * A study set with its items and progress roll-up
+         * @description Documents the caller can no longer read are left out of the items and of the roll-up.
+         */
+        get: operations["getStudySet"];
+        put?: never;
+        post?: never;
+        /** Delete a study set (documents are not touched) */
+        delete: operations["deleteStudySet"];
+        options?: never;
+        head?: never;
+        /** Rename a study set or edit its description and notes */
+        patch: operations["updateStudySet"];
+        trace?: never;
+    };
+    "/study-sets/{study_set_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a workspace document, or a public paper by reference (title and link only)
+         * @description A document the caller may not read is reported as 404, exactly like fetching it directly.
+         */
+        post: operations["addStudySetItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/study-sets/{study_set_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an item from a study set */
+        delete: operations["removeStudySetItem"];
+        options?: never;
+        head?: never;
+        /** Edit an item's note or move it */
+        patch: operations["updateStudySetItem"];
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/learning-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** The caller's learning plans in a workspace */
+        get: operations["listLearningPlans"];
+        put?: never;
+        /**
+         * Generate a reading plan from a study set, or from a topic and selected documents
+         * @description The steps, their order, pages, effort and weeks are computed from the documents' structure. Each step's
+         *     learning objective is generated and then verified like an answer to /ask: unsupported claims are dropped and a
+         *     step with nothing supported carries a refusal (a topic plan leaves such steps out). Documents the caller may
+         *     not read are reported as 404. Runs in private mode on the local model.
+         */
+        post: operations["createLearningPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * A plan with its steps, objectives (verified answers) and progress
+         * @description Steps whose document the caller can no longer read are left out, and so are citations they can no longer read.
+         */
+        get: operations["getLearningPlan"];
+        put?: never;
+        post?: never;
+        /** Delete a plan and its generated objectives */
+        delete: operations["deleteLearningPlan"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning-plans/{plan_id}/steps/{step_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+                step_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark a step done or not done */
+        patch: operations["updatePlanStep"];
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/learning/summarize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Summarize one document as verified claims with citations (or a refusal)
+         * @description Reads a sample of the document's sections (all of them for a short document) and returns an ordinary answer:
+         *     every claim has a checked quote. `notices` says when only part of a long document was read. A document the
+         *     caller may not read is reported as 404.
+         */
+        post: operations["summarizeDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/learning/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compare 2 to 5 documents on a stated aspect, as verified claims with citations (or a refusal)
+         * @description Each claim cites the documents it is about; a difference or agreement needs a quote from every document it
+         *     names. `notices` lists documents with no supported statement on the aspect. If any document id is unreadable
+         *     or unknown the whole request is a 404, without saying which one.
+         */
+        post: operations["compareDocuments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the login page may offer (password form, single sign-on button) */
+        get: operations["getAuthConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start single sign-on (browser navigation; 404 unless OIDC_ENABLED)
+         * @description Redirects the browser to the identity provider (authorization-code flow with PKCE). The one-time state,
+         *     nonce and PKCE verifier are kept in a short-lived signed HttpOnly cookie scoped to `/api/v1/auth/oidc`.
+         */
+        get: operations["oidcLogin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Finish single sign-on (browser navigation; the identity provider redirects here)
+         * @description Validates state, exchanges the code, verifies the ID token (signature via JWKS, issuer, audience, expiry,
+         *     nonce) and maps it to a local user by verified e-mail. Always redirects to the web app: on success to
+         *     `/#oidc_token=<CiteSure JWT>`, on failure to `/#oidc_error=<short code>` (a URL fragment is never sent to a server).
+         */
+        get: operations["oidcCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The audit log (admin only), newest first
+         * @description Events of this workspace plus sign-ins of its members. Entries hold ids, counts and hashes, never document
+         *     or question text.
+         */
+        get: operations["listAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/audit-events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Download the filtered audit log as CSV, oldest first (admin only; the export is itself logged) */
+        get: operations["exportAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/audit-events/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Re-compute the audit log's hash chain (admin only)
+         * @description Checks the whole log (it is one chain for the system), not only this workspace's entries.
+         */
+        get: operations["verifyAuditChain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        /** Operational numbers for the last N days (admin only) */
+        get: operations["getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -835,6 +1378,41 @@ export interface components {
             reasons: string[];
             /** @description Plain-language reason a blocked query was blocked */
             explanation: string;
+        };
+        FullTextFetchRequest: {
+            /**
+             * Format: uuid
+             * @description The workspace whose daily download budget pays for this
+             */
+            workspace_id: string;
+            /** @description The paper's public address, as in a citation (doi.org, arxiv.org, europepmc.org or openalex.org) */
+            url: string;
+            /** @description The paper's DOI, when known; used instead of `url` */
+            doi?: string | null;
+        };
+        FullTextStatus: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "ready" | "failed";
+            /** @description The paper as it is cited */
+            title: string | null;
+            /** @description Number of passages added */
+            passages: number | null;
+            pages: number | null;
+            /** @description Served from the cache; nothing was downloaded or charged */
+            cached: boolean;
+            /**
+             * @description Reason code of a failure: unsupported_source, no_open_access, host_not_allowed, not_pdf, too_large,
+             *     too_long, unreadable, timeout, fetch_failed, blocked, disabled or internal_error
+             */
+            error: string | null;
+            /** @description What to tell the user about the failure */
+            message: string | null;
+            /** @description Downloads left in this workspace's daily budget */
+            fetches_remaining: number;
+            /** @description Where the request went (hosts and the public identifier sent); empty for a cached paper */
+            egress: components["schemas"]["EgressRecord"][];
         };
         Citation: {
             /** @description `public` citations point at a paper or web page (`url`) and have no database chunk */
@@ -1100,10 +1678,427 @@ export interface components {
             fused: components["schemas"]["Candidate"][];
             reranked: components["schemas"]["Candidate"][];
         };
+        ReadingProgress: {
+            /** Format: uuid */
+            document_id: string;
+            last_page: number | null;
+            pages_read: number[];
+            percent: number;
+            /**
+             * Format: date-time
+             * @description Null until the document was opened
+             */
+            last_opened_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        ReadingProgressUpdate: {
+            /** @description The page being read */
+            page?: number | null;
+            /**
+             * @description Count `page` as read
+             * @default false
+             */
+            mark_read: boolean;
+            /** @description Further pages to mark as read */
+            pages_read?: number[];
+            /** @description Furthest position for documents without pages */
+            percent?: number | null;
+        };
+        ReadingProgressItem: {
+            /** Format: uuid */
+            document_id: string;
+            document_title: string;
+            page_count: number | null;
+            last_page: number | null;
+            pages_read: number[];
+            percent: number;
+            /** Format: date-time */
+            last_opened_at: string;
+        };
+        ProgressRollup: {
+            documents_total: number;
+            documents_started: number;
+            documents_finished: number;
+            /** @description Mean reading progress over the documents (unopened ones count as 0) */
+            percent: number;
+        };
+        StudySet: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workspace_id: string;
+            name: string;
+            description: string;
+            notes: string;
+            item_count: number;
+            progress: components["schemas"]["ProgressRollup"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @enum {string} */
+        StudySetItemKind: "document" | "reference";
+        StudySetItem: {
+            /** Format: uuid */
+            id: string;
+            position: number;
+            kind: components["schemas"]["StudySetItemKind"];
+            /** Format: uuid */
+            document_id: string | null;
+            title: string;
+            /** @description Link of a saved public paper */
+            url: string | null;
+            source: string | null;
+            note: string;
+            page_count: number | null;
+            /** @description The caller's reading progress; null for a saved public paper */
+            percent: number | null;
+            /** Format: date-time */
+            added_at: string;
+        };
+        StudySetDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workspace_id: string;
+            name: string;
+            description: string;
+            notes: string;
+            item_count: number;
+            progress: components["schemas"]["ProgressRollup"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            items: components["schemas"]["StudySetItem"][];
+        };
+        StudySetCreate: {
+            name: string;
+            /** @default  */
+            description: string;
+        };
+        StudySetUpdate: {
+            name?: string | null;
+            description?: string | null;
+            notes?: string | null;
+        };
+        ReferenceInput: {
+            title: string;
+            /** @description An http(s) link; nothing is fetched */
+            url: string;
+            /** @description Where the paper was found, e.g. arxiv */
+            source?: string | null;
+        };
+        /** @description Exactly one of `document_id` and `reference`. */
+        StudySetItemCreate: {
+            /** Format: uuid */
+            document_id?: string | null;
+            reference?: components["schemas"]["ReferenceInput"] | null;
+            /** @default  */
+            note: string;
+        };
+        StudySetItemUpdate: {
+            note?: string | null;
+            position?: number | null;
+        };
+        PlanStep: {
+            /** Format: uuid */
+            id: string;
+            /** @description From 1 */
+            position: number;
+            /** @description From 1; steps are filled into weeks of `hours_per_week` hours */
+            week: number;
+            /** Format: uuid */
+            document_id: string;
+            document_title: string;
+            /** @description Section heading(s) of the document this step covers; empty if it has none */
+            label: string;
+            page_start: number | null;
+            page_end: number | null;
+            est_minutes: number;
+            done: boolean;
+            /** Format: date-time */
+            done_at: string | null;
+            /** @description The caller's reading progress in the document */
+            reading_percent: number;
+            /** @description Verified claims about what the step covers, or a refusal */
+            objective: components["schemas"]["Answer"] | null;
+        };
+        LearningPlanSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workspace_id: string;
+            /** Format: uuid */
+            study_set_id: string | null;
+            title: string;
+            topic: string | null;
+            hours_per_week: number;
+            weeks: number;
+            total_minutes: number;
+            steps_done: number;
+            steps_total: number;
+            percent: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        LearningPlan: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workspace_id: string;
+            /** Format: uuid */
+            study_set_id: string | null;
+            title: string;
+            topic: string | null;
+            hours_per_week: number;
+            weeks: number;
+            total_minutes: number;
+            steps_done: number;
+            steps_total: number;
+            percent: number;
+            /** Format: date-time */
+            created_at: string;
+            steps: components["schemas"]["PlanStep"][];
+        };
+        /** @description Give `study_set_id`, or `document_ids` (optionally with a `topic`), not both. */
+        LearningPlanCreate: {
+            title?: string | null;
+            /** Format: uuid */
+            study_set_id?: string | null;
+            topic?: string | null;
+            document_ids?: string[];
+            /** @default 4 */
+            hours_per_week: number;
+        };
+        PlanStepUpdate: {
+            done: boolean;
+        };
+        SummarizeRequest: {
+            /** Format: uuid */
+            document_id: string;
+            /** @description Summarize only what the document says about this */
+            focus?: string | null;
+        };
+        CompareRequest: {
+            document_ids: string[];
+            /** @description What to compare, e.g. "data retention" */
+            aspect: string;
+        };
+        AuthConfig: {
+            /** @description False when OIDC_ONLY is set */
+            password_login: boolean;
+            registration: boolean;
+            oidc_enabled: boolean;
+            /** @description Label for the single sign-on button */
+            oidc_provider_name: string | null;
+        };
+        AuditEvent: {
+            /** @description Position in the hash chain */
+            seq: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            actor_id: string | null;
+            actor_email: string | null;
+            /** @example document.delete */
+            action: string;
+            /** @example document:0b1f... */
+            target: string | null;
+            /** Format: uuid */
+            workspace_id: string | null;
+            /** @description Ids, counts, lengths and hashes only */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** @description SHA-256 over the previous entry hash and this entry's content */
+            hash: string;
+        };
+        AuditEventPage: {
+            items: components["schemas"]["AuditEvent"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        AuditChainStatus: {
+            ok: boolean;
+            checked: number;
+            head_seq: number | null;
+            /** @description Keep a copy elsewhere: it reveals removal of the newest entries */
+            head_hash: string | null;
+            first_bad_seq: number | null;
+            reason: string | null;
+            /** @description Greater than 1 when an operator removed old entries */
+            starts_at_seq: number | null;
+        };
+        DashboardDay: {
+            /** Format: date */
+            date: string;
+            questions: number;
+            answered: number;
+            refused: number;
+            cost_usd: number;
+        };
+        DashboardQuestions: {
+            total: number;
+            answered: number;
+            refused: number;
+            refusal_rate: number;
+            claims_shown: number;
+            claims_dropped: number;
+            /** @description Dropped / (shown + dropped) */
+            dropped_claim_rate: number;
+        };
+        DashboardLatency: {
+            p50_ms: number | null;
+            p95_ms: number | null;
+        };
+        DashboardCost: {
+            total_usd: number;
+            per_question_usd: number;
+            tokens_in: number;
+            tokens_out: number;
+        };
+        DashboardCount: {
+            label: string;
+            count: number;
+        };
+        DashboardDocuments: {
+            total: number;
+            chunks: number;
+            by_status: components["schemas"]["DashboardCount"][];
+        };
+        IngestFailure: {
+            /** Format: uuid */
+            document_id: string;
+            title: string;
+            error: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        DashboardIngest: {
+            failed_documents: number;
+            failed_jobs: number;
+            recent_failures: components["schemas"]["IngestFailure"][];
+        };
+        DashboardEgress: {
+            destination: string;
+            status: string;
+            count: number;
+        };
+        DashboardFeedback: {
+            up: number;
+            down: number;
+            positive_ratio: number | null;
+        };
+        Dashboard: {
+            /** Format: uuid */
+            workspace_id: string;
+            days: number;
+            /** Format: date-time */
+            generated_at: string;
+            questions: components["schemas"]["DashboardQuestions"];
+            per_day: components["schemas"]["DashboardDay"][];
+            latency: components["schemas"]["DashboardLatency"];
+            cost: components["schemas"]["DashboardCost"];
+            documents: components["schemas"]["DashboardDocuments"];
+            ingest: components["schemas"]["DashboardIngest"];
+            egress: components["schemas"]["DashboardEgress"][];
+            feedback: components["schemas"]["DashboardFeedback"];
+        };
         Health: {
             /** @enum {string} */
             status: "ok" | "degraded";
             database: boolean;
+        };
+        /** @enum {string} */
+        AnnotationColor: "yellow" | "green" | "blue" | "pink" | "orange";
+        /** @description A rectangle as fractions (0 to 1) of the page width and height, origin top-left, so it survives zooming. */
+        NormalizedRect: {
+            x: number;
+            y: number;
+            w: number;
+            h: number;
+        };
+        Annotation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            document_id: string;
+            page: number;
+            rects: components["schemas"]["NormalizedRect"][];
+            /** @description The selected text */
+            text: string;
+            note: string;
+            color: components["schemas"]["AnnotationColor"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AnnotationCreate: {
+            page: number;
+            rects: components["schemas"]["NormalizedRect"][];
+            text: string;
+            /** @default  */
+            note: string;
+            color?: components["schemas"]["AnnotationColor"];
+        };
+        AnnotationUpdate: {
+            note?: string;
+            color?: components["schemas"]["AnnotationColor"];
+        };
+        /** @enum {string} */
+        InboxItemStatus: "imported" | "duplicate" | "quarantined" | "failed";
+        InboxItem: {
+            /** Format: uuid */
+            id: string;
+            /** @description Folder the file was found in, relative to the inbox root */
+            folder: string;
+            filename: string;
+            size_bytes: number;
+            status: components["schemas"]["InboxItemStatus"];
+            /** @description Why a file was quarantined or failed */
+            reason: string | null;
+            /** Format: uuid */
+            collection_id: string | null;
+            collection_name: string | null;
+            /** Format: uuid */
+            document_id: string | null;
+            /** @description Ingestion status of the imported document */
+            document_status: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InboxFolder: {
+            /** @description Path to drop files into, relative to the inbox root */
+            folder: string;
+            /** Format: uuid */
+            collection_id: string | null;
+            collection_name: string | null;
+            /** @description False for a folder that matches no collection (its files are quarantined) */
+            matched: boolean;
+            imported: number;
+            duplicates: number;
+            quarantined: number;
+            failed: number;
+            /** Format: date-time */
+            last_activity_at: string | null;
+        };
+        InboxStatus: {
+            /** @description False when INBOX_ROOT is not set */
+            enabled: boolean;
+            /** @description First folder level for this workspace */
+            workspace_folder: string;
+            poll_seconds: number;
+            max_file_mb: number;
+            allowed_types: string[];
+            /** Format: date-time */
+            last_scan_at: string | null;
+            scan_requested: boolean;
+            folders: components["schemas"]["InboxFolder"][];
         };
     };
     responses: {
@@ -1754,6 +2749,189 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listAnnotations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Annotations in reading order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Annotation"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAnnotation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Annotation"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    deleteAnnotation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAnnotation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated annotation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Annotation"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getInboxStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listInboxItems: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["InboxItemStatus"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxItem"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    requestInboxScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scan requested; the worker picks it up within a few seconds */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     ask: {
         parameters: {
             query?: never;
@@ -1858,6 +3036,58 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             422: components["responses"]["ValidationError"];
             429: components["responses"]["TooManyRequests"];
+        };
+    };
+    requestFullText: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FullTextFetchRequest"];
+            };
+        };
+        responses: {
+            /** @description The request, queued, running or already ready */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FullTextStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getFullTextStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request's current status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FullTextStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     listThreads: {
@@ -2247,6 +3477,694 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getReadingProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingProgress"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateReadingProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingProgressUpdate"];
+            };
+        };
+        responses: {
+            /** @description Progress after the update */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingProgress"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    resetReadingProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reset */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listReadingProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Progress per document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingProgressItem"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listStudySets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Study sets (without items) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudySet"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createStudySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudySetCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudySetDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getStudySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The study set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudySetDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteStudySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateStudySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudySetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudySetDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    addStudySetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudySetItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudySetItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    removeStudySetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateStudySetItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                study_set_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudySetItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudySetItem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    listLearningPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plans (without steps) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningPlanSummary"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createLearningPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LearningPlanCreate"];
+            };
+        };
+        responses: {
+            /** @description The plan */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningPlan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getLearningPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningPlan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteLearningPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updatePlanStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+                step_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanStepUpdate"];
+            };
+        };
+        responses: {
+            /** @description The plan after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningPlan"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    summarizeDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SummarizeRequest"];
+            };
+        };
+        responses: {
+            /** @description A verified summary, or a refusal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Answer"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    compareDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompareRequest"];
+            };
+        };
+        responses: {
+            /** @description A verified comparison, or a refusal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Answer"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getAuthConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sign-in options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthConfig"];
+                };
+            };
+        };
+    };
+    oidcLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the identity provider */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    oidcCallback: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the web app */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listAuditEvents: {
+        parameters: {
+            query?: {
+                /** @description User id, or part of an e-mail address */
+                actor?: string;
+                /** @description Exact action, e.g. document.delete */
+                action?: string;
+                since?: string;
+                until?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    exportAuditEvents: {
+        parameters: {
+            query?: {
+                actor?: string;
+                action?: string;
+                since?: string;
+                until?: string;
+            };
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file (at most 50,000 rows) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    verifyAuditChain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The result of the check */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditChainStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getDashboard: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregates only; no question or document text */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
         };

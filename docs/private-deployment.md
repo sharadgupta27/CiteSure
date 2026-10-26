@@ -66,7 +66,7 @@ Open `http://localhost:8080`. The port is bound to `127.0.0.1`. To reach it from
 ### Turning the public lane on and off
 
 - Off completely: `PUBLIC_RESEARCH_ENABLED=false`. The API never makes an outbound request, the proxy is idle, and you can also remove the `edge` network from `egress-proxy` for a hard guarantee.
-- Scholarly sources only (default): `PUBLIC_SOURCES=arxiv,crossref,openalex,europepmc`.
+- Scholarly sources only (default): `PUBLIC_SOURCES=arxiv,crossref,openalex,europepmc,semanticscholar`.
 - With Claude for public text (your API key): `PUBLIC_LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`. Claude then answers public-only questions that passed the guard. Add `web` to `PUBLIC_SOURCES` and set `EGRESS_MODE=open` for arbitrary published pages.
 
 ## Operating it

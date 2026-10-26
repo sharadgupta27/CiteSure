@@ -69,6 +69,11 @@ class S3BlobStore:
 
 
 def build_blob_store(settings: Settings) -> BlobStore:
-    if settings.storage_backend == "s3":
-        return S3BlobStore(settings.s3_bucket)
-    return LocalBlobStore(settings.storage_path)
+    inner: BlobStore = (
+        S3BlobStore(settings.s3_bucket) if settings.storage_backend == "s3" else LocalBlobStore(settings.storage_path)
+    )
+    if not settings.vault_enabled:
+        return inner
+    from app.storage.vault import VaultBlobStore, load_keyring  # lazy: vault.py imports this module
+
+    return VaultBlobStore(inner, load_keyring(settings))  # raises VaultError at startup if the key is unusable

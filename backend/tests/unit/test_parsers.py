@@ -127,6 +127,69 @@ def test_pdf_has_one_section_per_page_with_page_numbers() -> None:
     assert "need approval from a director" in doc.sections[1].text
 
 
+def _pdf_with_table(rows: list[tuple[str, ...]], heading: str = "") -> bytes:
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    y = 72.0
+    if heading:
+        page.insert_text((72, y), heading, fontsize=14)
+        y += 36
+    page.insert_text((72, y), "The price list below is updated every quarter by the office manager.", fontsize=10)
+    y += 36
+    for cells in rows:
+        for column, cell in enumerate(cells):
+            page.insert_text((72 + column * 140, y), cell, fontsize=10)  # wide gaps read as separate cells
+        y += 16
+    return doc.tobytes()
+
+
+def test_pdf_table_is_read_row_by_row_so_a_price_stays_next_to_its_item() -> None:
+    data = _pdf_with_table(
+        [
+            ("Item", "Qty", "Cost"),
+            ("Keyboard", "2", "80 dollars"),
+            ("Headset", "1", "120 dollars"),
+            ("Monitor", "4", "300 dollars"),
+        ]
+    )
+    doc = parse_document("pdf", data, "prices.pdf")
+    text = "\n".join(s.text for s in doc.sections)
+    assert "Keyboard | 2 | 80 dollars" in text
+    assert "Headset | 1 | 120 dollars" in text
+
+
+def test_long_pdf_table_repeats_its_header_between_slices() -> None:
+    rows = [("Item", "Qty", "Cost")] + [(f"Thing{i:02d}", "1", f"{i} dollars") for i in range(30)]
+    doc = parse_document("pdf", _pdf_with_table(rows), "long.pdf")
+    text = "\n".join(s.text for s in doc.sections)
+    assert text.count("Item | Qty | Cost") == 3  # the original header plus one per extra 14-row slice
+    assert "Thing29 | 1 | 29 dollars" in text
+
+
+def test_pdf_heading_becomes_the_heading_path_and_stays_in_the_text() -> None:
+    doc = parse_document("pdf", _pdf_with_table([("Item", "Qty", "Cost")] * 5, heading="Equipment Prices"), "h.pdf")
+    section = next(s for s in doc.sections if "Item | Qty | Cost" in s.text)
+    assert section.heading_path == ("Equipment Prices",)
+    assert any(s.text.startswith("Equipment Prices") for s in doc.sections)
+
+
+def test_pdf_ligature_damage_is_repaired() -> None:
+    from app.rag.parsing.pdf import repair_text
+
+    assert repair_text("innovaƟon ﬁle") == "innovation file"
+
+
+def test_a_pdf_with_no_text_is_rejected_with_a_clear_reason() -> None:
+    import pymupdf
+
+    blank = pymupdf.open()
+    blank.new_page()
+    with pytest.raises(ParseError, match="no extractable text"):
+        parse_document("pdf", blank.tobytes(), "scan.pdf")
+
+
 def test_corrupt_files_raise_parse_error_not_a_crash() -> None:
     with pytest.raises(ParseError):
         parse_document("pdf", b"%PDF-1.4 this is not really a pdf", "bad.pdf")

@@ -135,7 +135,7 @@ async def test_public_scope_answers_from_papers_with_a_hosted_model_that_never_s
     citation = answer["claims"][0]["citations"][0]
     assert citation["source_type"] == "public" and citation["url"].startswith("https://")
     assert "memory use" in citation["quote"]
-    assert {r["destination"] for r in answer["egress"]} == {"arxiv", "crossref", "openalex", "europepmc"}
+    assert {r["destination"] for r in answer["egress"]} == {"arxiv", "crossref", "openalex", "europepmc", "semanticscholar"}
     assert all(r["query"] == "sparse attention reduce memory sequences" for r in answer["egress"])
 
     assert lane.hosted.prompts and not lane.local.prompts  # the question was cleared, so the hosted model answered

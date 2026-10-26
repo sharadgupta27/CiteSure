@@ -25,6 +25,9 @@ class Paper:
     authors: tuple[str, ...] = ()
     year: int | None = None
     doi: str | None = None
+    # Where an open-access copy may be read, as reported by the source (OpenAlex, arXiv, Europe PMC, Semantic Scholar).
+    # It is a hint, never fetched on its own: `research/fulltext.py` validates and fetches it through the egress client.
+    oa_url: str | None = None
 
     @property
     def key(self) -> str:

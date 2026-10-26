@@ -33,6 +33,7 @@ from app.rag.generation.prompt import (
     render_user_message,
 )
 from app.rag.retrieval import retrieve
+from app.rag.retrieval.fulltext import FullTextRetriever
 from app.rag.types import PipelineConfig, RetrievalTrace, ScoredChunk
 from app.rag.verification import RefusalInfo, VerifiedClaim, refusal_for, verify_draft
 from app.rag.verification.policy import closest_sources
@@ -141,7 +142,9 @@ async def run_pipeline(
         if providers.research is None:
             notices.append("Public research is not enabled on this server.")
         else:
-            research = providers.research.for_request(SqlInternalCorpus(session))
+            # Open-access papers users added are searched locally and cited like any public passage (phase 3).
+            cache = FullTextRetriever(session, providers.embedder, settings.candidate_k) if settings.fulltext_on else None
+            research = providers.research.for_request(SqlInternalCorpus(session), cache)
             with timer.stage("research"):
                 found = await research.search(question, explicit_query=public_query, reranker=providers.reranker)
             public_chunks, notices, egress, question_cleared = (

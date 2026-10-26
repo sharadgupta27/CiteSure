@@ -28,7 +28,7 @@ async def create_document(
     mime: str,
     sha256: str,
     blob_key: str,
-    uploaded_by: uuid.UUID,
+    uploaded_by: uuid.UUID | None,
 ) -> Document:
     doc = Document(
         collection_id=collection_id,

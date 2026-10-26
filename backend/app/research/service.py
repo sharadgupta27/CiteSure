@@ -19,6 +19,7 @@ from app.rag.retrieval.fusion import reciprocal_rank_fusion
 from app.rag.retrieval.rerank import rerank
 from app.rag.types import ScoredChunk
 from app.research.connectors import Connector, build_connectors
+from app.research.fulltext import FullTextIndex
 from app.research.papers import EgressRecord, Paper, ResearchResult
 from app.research.query import build_public_query
 from app.research.web import WebDiscovery, passages_for
@@ -89,8 +90,9 @@ class ResearchKit:
         self.web = web
         self.public_llm = public_llm
 
-    def for_request(self, corpus: InternalCorpus | None) -> PublicResearch:
-        return PublicResearch(self, EgressGuard(self.settings, corpus))
+    def for_request(self, corpus: InternalCorpus | None, fulltext: FullTextIndex | None = None) -> PublicResearch:
+        """`fulltext` is the cache of open-access papers users added; passed only when the feature is on."""
+        return PublicResearch(self, EgressGuard(self.settings, corpus), fulltext)
 
     async def aclose(self) -> None:
         await self.client.aclose()
@@ -117,9 +119,10 @@ def build_kit(settings: Settings, public_llm: LLMProvider | None = None) -> Rese
 
 
 class PublicResearch:
-    def __init__(self, kit: ResearchKit, guard: EgressGuard) -> None:
+    def __init__(self, kit: ResearchKit, guard: EgressGuard, fulltext: FullTextIndex | None = None) -> None:
         self._kit = kit
         self._guard = guard
+        self._fulltext = fulltext
 
     async def _decide(self, question: str, explicit_query: str | None) -> tuple[str, Decision, bool]:
         """The query that would be sent, the guard's verdict on it, and whether the whole question is cleared.
@@ -168,6 +171,7 @@ class PublicResearch:
             rankings.append(self._chunks(papers))
         if failed:
             result.notices.append(f"Some public sources did not respond: {', '.join(failed)}.")
+        rankings.append(await self._cached_full_text(question))
 
         fused = reciprocal_rank_fusion(rankings)
         top_k = self._kit.settings.public_top_k
@@ -177,6 +181,17 @@ class PublicResearch:
         if not result.chunks and not failed:
             result.notices.append("No published sources matched the public search.")
         return result
+
+    async def _cached_full_text(self, question: str) -> list[ScoredChunk]:
+        """Passages from papers whose open-access full text a user added. This only reads the local cache, so nothing
+        is sent anywhere and no egress record is made. A failure here must not fail the answer: the abstracts remain."""
+        if self._fulltext is None:
+            return []
+        try:
+            return await self._fulltext.search(question, self._kit.settings.public_top_k * 3)
+        except Exception as exc:  # a missing table or a database hiccup: report the type, keep the abstracts
+            log.warning("full text cache unavailable: %s", type(exc).__name__)
+            return []
 
     def _blocked(self, result: ResearchResult, decision: Decision) -> ResearchResult:
         reasons = ",".join(public_reasons(decision.reasons)) or "blocked"

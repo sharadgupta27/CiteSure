@@ -14,7 +14,7 @@ from app.observability import INGEST_DOCS
 from app.providers import Providers
 from app.rag import pii
 from app.rag.chunking import chunk_sections
-from app.rag.parsing import ParseError, detect, parse_document
+from app.rag.parsing import OcrOptions, ParseError, detect, parse_document
 from app.repositories import documents as documents_repo
 
 EMBED_BATCH = 64
@@ -47,7 +47,8 @@ async def ingest_document(
 
         data = await providers.blobs.get(doc.blob_key)
         detected = detect(data)
-        parsed = await asyncio.to_thread(parse_document, detected.kind, data, doc.filename)
+        ocr = OcrOptions(settings.ocr_enabled, settings.ocr_languages, settings.ocr_dpi, settings.ocr_max_pages)
+        parsed = await asyncio.to_thread(parse_document, detected.kind, data, doc.filename, ocr=ocr)
         sections = parsed.sections
         if settings.pii_redact:  # before chunking, so character offsets match the stored text
             sections = [replace(sec, text=pii.redact(sec.text)) for sec in sections]

@@ -34,7 +34,7 @@ x-backend-env: &backend-env
   # The public lane.
   PUBLIC_RESEARCH_ENABLED: ${PUBLIC_RESEARCH_ENABLED:-true}
   DEFAULT_SCOPE: ${DEFAULT_SCOPE:-internal}
-  PUBLIC_SOURCES: ${PUBLIC_SOURCES:-arxiv,crossref,openalex,europepmc}
+  PUBLIC_SOURCES: ${PUBLIC_SOURCES:-arxiv,crossref,openalex,europepmc,semanticscholar}
   PUBLIC_LLM_PROVIDER: ${PUBLIC_LLM_PROVIDER:-none}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   ANSWER_MODEL: ${ANSWER_MODEL:-claude-sonnet-5-5}
@@ -45,6 +45,37 @@ x-backend-env: &backend-env
   EGRESS_DENY_TERMS: ${EGRESS_DENY_TERMS:-}
   EGRESS_ALLOW_TERMS: ${EGRESS_ALLOW_TERMS:-}
   EGRESS_CANARIES: ${EGRESS_CANARIES:-}
+  # Phase 2: watched-folder inbox (docs/viewer-and-inbox.md). Empty = off. To turn it on set INBOX_ROOT=/data/inbox.
+  INBOX_ROOT: ${INBOX_ROOT:-}
+  INBOX_POLL_SECONDS: ${INBOX_POLL_SECONDS:-30}
+  INBOX_MAX_FILE_MB: ${INBOX_MAX_FILE_MB:-20}
+  # Phase 3: open-access full text of published papers, on demand (docs/open-access-fulltext.md). Follows PUBLIC_RESEARCH_ENABLED.
+  FULLTEXT_ENABLED: ${FULLTEXT_ENABLED:-}
+  FULLTEXT_DAILY_FETCHES: ${FULLTEXT_DAILY_FETCHES:-20}
+  FULLTEXT_MAX_BYTES: ${FULLTEXT_MAX_BYTES:-25000000}
+  FULLTEXT_CACHE_TTL_DAYS: ${FULLTEXT_CACHE_TTL_DAYS:-30}
+  # Phase 5: encrypted vault for uploaded files, local OCR, optional OIDC sign-in (docs/vault-and-ocr.md, docs/oidc.md).
+  # All off by default. The OIDC provider is contacted directly (not via the egress proxy): in private mode it must be on the
+  # internal network (for example a Keycloak container), never a public address.
+  VAULT_ENABLED: ${VAULT_ENABLED:-false}
+  VAULT_KEY: ${VAULT_KEY:-}
+  VAULT_KEY_FILE: ${VAULT_KEY_FILE:-}
+  VAULT_KEY_ID: ${VAULT_KEY_ID:-k1}
+  VAULT_RETIRED_KEYS_FILE: ${VAULT_RETIRED_KEYS_FILE:-}
+  OCR_ENABLED: ${OCR_ENABLED:-false} # needs the image built with WITH_OCR=true
+  OCR_LANGUAGES: ${OCR_LANGUAGES:-eng}
+  OIDC_ENABLED: ${OIDC_ENABLED:-false}
+  OIDC_ONLY: ${OIDC_ONLY:-false}
+  OIDC_ISSUER: ${OIDC_ISSUER:-}
+  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+  OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+  OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+  OIDC_SCOPES: ${OIDC_SCOPES:-openid email profile}
+  OIDC_GROUPS_CLAIM: ${OIDC_GROUPS_CLAIM:-groups}
+  OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-Single sign-on}
+  OIDC_AUTO_CREATE_USERS: ${OIDC_AUTO_CREATE_USERS:-false}
+  OIDC_REQUIRE_EMAIL_VERIFIED: ${OIDC_REQUIRE_EMAIL_VERIFIED:-true}
+  OIDC_POST_LOGIN_URL: ${OIDC_POST_LOGIN_URL:-}
   STORAGE_BACKEND: local
   STORAGE_PATH: /data/uploads
   UPLOADS_ENABLED: ${UPLOADS_ENABLED:-true}
@@ -56,6 +87,8 @@ x-backend-build: &backend-build
   dockerfile: backend/Dockerfile
   args:
     WITH_ML: ${WITH_ML:-true} # fastembed models are baked into the image, so nothing is downloaded at runtime
+    WITH_OCR: ${WITH_OCR:-false} # true installs Tesseract (local OCR for scanned PDFs)
+    OCR_LANGS: ${OCR_LANGS:-eng}
 
 networks:
   internal:
@@ -150,7 +183,11 @@ services:
     command: ["python", "-m", "app.worker"]
     networks: [internal]
     environment: *backend-env
-    volumes: [uploads:/data/uploads]
+    volumes: [
+      uploads:/data/uploads,
+      # Phase 2 inbox: a host folder the worker reads and moves files out of (.processed, .failed, .quarantine). Local disk only.
+      "${INBOX_HOST_DIR:-./inbox}:/data/inbox",
+    ]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9100/metrics', timeout=2).status == 200 else 1)"]
       interval: 15s

@@ -6,3 +6,6 @@ api.openalex.org
 www.ebi.ac.uk
 api.semanticscholar.org
 api.anthropic.com
+# Open-access full text (phase 3): PDFs of published papers, fetched on demand through the egress client.
+arxiv.org
+europepmc.org

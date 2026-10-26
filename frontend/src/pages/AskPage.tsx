@@ -11,6 +11,7 @@ import { Icon, Logo, type IconName } from "../components/Icon";
 import { ScopePicker } from "../components/ScopePicker";
 import { SourceViewer } from "../components/SourceViewer";
 import { Button, Empty, ErrorBanner, Spinner } from "../components/ui";
+import { looksLikeLiteratureQuestion } from "../lib/researchIntent";
 import { STAGE_LABELS, initialStreamState, streamReducer } from "../lib/streamReducer";
 
 interface Turn {
@@ -139,6 +140,25 @@ export function AskPage() {
         onKeyDown={onKeyDown}
         disabled={busy}
       />
+      {publicResearch && scope === "internal" && looksLikeLiteratureQuestion(question) && (
+        <div
+          role="status"
+          data-testid="research-suggestion"
+          className="mx-4 mb-1 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+        >
+          <span className="inline-flex items-center gap-2">
+            <Icon name="globe" className="h-4 w-4" />
+            This looks like a question about published research. Your documents alone may not answer it.
+          </span>
+          <button
+            type="button"
+            onClick={() => setScope("both")}
+            className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            Also search published research
+          </button>
+        </div>
+      )}
       {publicResearch && (
         <div className="px-4 pb-1 pt-1">
           <ScopePicker

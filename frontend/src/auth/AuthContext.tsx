@@ -10,6 +10,8 @@ interface AuthValue {
   /** True while the stored token is being validated at startup. */
   loading: boolean;
   signIn: (email: string, password: string, createAccount: boolean) => Promise<void>;
+  /** Finish a single sign-on: the server redirected the browser back with a CiteSure token. */
+  signInWithToken: (token: string) => Promise<void>;
   signOut: () => void;
 }
 
@@ -70,7 +72,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(response.user);
   }, []);
 
-  const value = useMemo(() => ({ user, loading, signIn, signOut }), [user, loading, signIn, signOut]);
+  const signInWithToken = useCallback(async (token: string) => {
+    setAuthToken(token);
+    try {
+      const me = await fetchMe();
+      storeToken(token);
+      setUser(me);
+    } catch (e) {
+      setAuthToken(null);
+      throw e;
+    }
+  }, []);
+
+  const value = useMemo(() => ({ user, loading, signIn, signInWithToken, signOut }), [user, loading, signIn, signInWithToken, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

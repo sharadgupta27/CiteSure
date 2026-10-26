@@ -62,7 +62,7 @@ So Claude never sees a company document, a company question that the guard stopp
 | `semanticscholar` | abstracts | none | unauthenticated use is rate limited, off by default |
 | `web` | passages from any published page | Anthropic | Claude's `web_search` tool finds URLs from the guarded query; CiteSure fetches the pages itself, so the quoted text is the page's real text |
 
-Papers are cited by title, authors, year and link. A public citation opens a panel with the exact quote and a link to the original; it has no stored document and nothing to download. The same checks apply as for company text: the quote must exist in the passage and a judge must find the claim supported, otherwise the claim is dropped.
+Papers are cited by title, authors, year and link. A public citation opens a panel with the exact quote and a link to the original; it has no stored document, but the panel can fetch the paper's open-access full text on demand ([open-access-fulltext.md](open-access-fulltext.md)), after which answers cite page-numbered passages from it. The same checks apply as for company text: the quote must exist in the passage and a judge must find the claim supported, otherwise the claim is dropped.
 
 ### The web source
 
@@ -83,13 +83,14 @@ Papers are cited by title, authors, year and link. A public citation opens a pan
 |---|---|---|
 | `PUBLIC_RESEARCH_ENABLED` | `false` | master switch; off means nothing is ever sent and the scope selector is hidden |
 | `DEFAULT_SCOPE` | `internal` | scope when a request omits it |
-| `PUBLIC_SOURCES` | `arxiv,crossref,openalex,europepmc` | comma list, see above |
+| `PUBLIC_SOURCES` | `arxiv,crossref,openalex,europepmc,semanticscholar` | comma list, see above |
 | `PUBLIC_LLM_PROVIDER` | `none` | `anthropic` lets Claude answer public-only questions and power the `web` source |
 | `EGRESS_MODE` | `allowlist` | `open` only for the `web` source |
-| `EGRESS_ALLOW_HOSTS` | the scholarly APIs and `api.anthropic.com` | must match `deploy/egress/allowlist.txt` (a test enforces it) |
+| `EGRESS_ALLOW_HOSTS` | the scholarly APIs, `api.anthropic.com`, and `arxiv.org` and `europepmc.org` (open-access PDFs) | must match `deploy/egress/allowlist.txt` (a test enforces it) |
 | `EGRESS_PROXY_URL` | empty | the allow-list proxy; required in prod private mode |
 | `EGRESS_DENY_TERMS`, `EGRESS_ALLOW_TERMS`, `EGRESS_CANARIES` | empty | the lists above |
 | `EGRESS_OVERLAP_WORDS`, `EGRESS_MAX_QUERY_CHARS` | `6`, `300` | guard thresholds |
+| `FULLTEXT_ENABLED`, `FULLTEXT_DAILY_FETCHES`, `FULLTEXT_MAX_BYTES`, `FULLTEXT_CACHE_TTL_DAYS`, ... | follows the public lane, `20`, `25000000`, `30` | open-access full text and its budget, see [open-access-fulltext.md](open-access-fulltext.md) |
 
 ## Proof
 

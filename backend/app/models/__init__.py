@@ -1,3 +1,4 @@
+from app.models import annotations, fulltext, learning, security  # noqa: F401  (register tables on Base.metadata)
 from app.models.base import Base
 from app.models.tables import (
     Answer,

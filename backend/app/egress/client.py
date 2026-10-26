@@ -119,12 +119,21 @@ class EgressClient:
             raise EgressDenied("private_address")
 
     async def get(
-        self, destination: str, url: str, *, params: dict[str, str] | None = None, fingerprint_of: str = ""
+        self,
+        destination: str,
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        fingerprint_of: str = "",
+        max_bytes: int | None = None,
+        accept: str | None = None,
     ) -> EgressResponse:
-        """GET `url`. `destination` labels the metrics (arxiv, web, ...). Raises EgressDenied or httpx errors."""
+        """GET `url`. `destination` labels the metrics (arxiv, web, ...). Raises EgressDenied or httpx errors.
+        `max_bytes` replaces the client-wide cap for this call (a PDF is far larger than an API reply); `accept` sets
+        the Accept header."""
         tag = fingerprint(fingerprint_of) if fingerprint_of else "-"
         try:
-            response = await self._get_following(url, params)
+            response = await self._get_following(url, params, max_bytes or self._max_bytes, accept)
         except EgressDenied as exc:
             EGRESS_REQUESTS.labels(destination=destination, outcome=f"denied:{exc.reason}").inc()
             log.warning("egress denied destination=%s reason=%s q=%s", destination, exc.reason, tag)
@@ -139,18 +148,24 @@ class EgressClient:
         )
         return response
 
-    async def _get_following(self, url: str, params: dict[str, str] | None) -> EgressResponse:
+    async def _get_following(
+        self, url: str, params: dict[str, str] | None, max_bytes: int, accept: str | None = None
+    ) -> EgressResponse:
         current = url
+        headers = {"Accept": accept} if accept else None
         for hop in range(MAX_REDIRECTS + 1):
             await self._validate(current)
-            async with self._client.stream("GET", current, params=params if hop == 0 else None) as response:
+            async with self._client.stream("GET", current, params=params if hop == 0 else None, headers=headers) as response:
                 if response.is_redirect and (location := response.headers.get("location")):
                     current = urljoin(str(response.url), location)
                     continue
+                declared = response.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > max_bytes:
+                    raise EgressDenied("response_too_large")  # refuse before downloading anything
                 body = bytearray()
                 async for chunk in response.aiter_bytes():
                     body.extend(chunk)
-                    if len(body) > self._max_bytes:
+                    if len(body) > max_bytes:
                         raise EgressDenied("response_too_large")
                 return EgressResponse(
                     url=str(response.url),

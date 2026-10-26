@@ -75,6 +75,25 @@ describe("AskPage scope", () => {
     expect(body.public_query).toBeUndefined();
   });
 
+  it("suggests, but never silently switches to, published research for a literature question", async () => {
+    const fetchMock = stub();
+    renderPage();
+    await screen.findByTestId("scope-picker");
+    const box = screen.getByLabelText("Your question");
+    await userEvent.type(box, "How many vacation days do I get?");
+    expect(screen.queryByTestId("research-suggestion")).not.toBeInTheDocument();
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "Find research papers on sparse attention");
+    expect(await screen.findByTestId("research-suggestion")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Company documents" })).toBeChecked(); // nothing changed by itself
+
+    await userEvent.click(screen.getByRole("button", { name: "Also search published research" }));
+    expect(screen.getByRole("radio", { name: "Both" })).toBeChecked();
+    expect(screen.queryByTestId("research-suggestion")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(typeof input === "string" ? input : input.url).includes("/ask/stream"))).toBe(false);
+  });
+
   it("previews the keywords, lets the user edit them, and sends exactly the edited query", async () => {
     const fetchMock = stub();
     renderPage();

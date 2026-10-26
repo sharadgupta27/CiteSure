@@ -16,6 +16,7 @@ from app.repositories import jobs as jobs_repo
 from app.services.documents import INGEST_JOB
 from app.services.eval_runner import execute_eval_run
 from app.services.evaluation import EVAL_JOB
+from app.services.fulltext import FULLTEXT_JOB, run_fulltext_job
 from app.services.ingest import ingest_document
 
 log = logging.getLogger("citesure.worker")
@@ -27,6 +28,8 @@ async def _dispatch(session: AsyncSession, providers: Providers, settings: Setti
         await ingest_document(session, providers, settings, uuid.UUID(job.payload["document_id"]))
     elif job.kind == EVAL_JOB:
         await execute_eval_run(session, providers, settings, uuid.UUID(job.payload["run_id"]))
+    elif job.kind == FULLTEXT_JOB:
+        await run_fulltext_job(session, providers, settings, uuid.UUID(job.payload["request_id"]))
     else:
         raise ValueError(f"Unknown job kind: {job.kind}")
 

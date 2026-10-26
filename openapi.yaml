@@ -22,9 +22,14 @@ tags:
   - name: documents
   - name: ask
   - name: public-research
+  - name: learning
   - name: feedback
   - name: evaluation
   - name: ops
+  - name: audit
+  - name: dashboard
+  - name: annotations
+  - name: inbox
 
 paths:
   /auth/register:
@@ -405,6 +410,141 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # --- phase 2: annotations (private to their author) ---
+  /documents/{document_id}/annotations:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [annotations]
+      operationId: listAnnotations
+      summary: The caller's own highlights and notes on a document (never anyone else's)
+      responses:
+        '200':
+          description: Annotations in reading order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Annotation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [annotations]
+      operationId: createAnnotation
+      summary: Save a highlight (with an optional note) on a document the caller can read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnnotationCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annotation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /annotations/{annotation_id}:
+    parameters:
+      - name: annotation_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [annotations]
+      operationId: updateAnnotation
+      summary: Change the note or colour of one of the caller's annotations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnnotationUpdate' }
+      responses:
+        '200':
+          description: The updated annotation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Annotation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [annotations]
+      operationId: deleteAnnotation
+      summary: Delete one of the caller's annotations
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # --- phase 2: watched-folder inbox (workspace admins only) ---
+  /workspaces/{workspace_id}/inbox:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [inbox]
+      operationId: getInboxStatus
+      summary: Watched-folder status for a workspace (admin only)
+      description: |
+        Layout on the server is `<INBOX_ROOT>/<workspace folder>/<collection name>/<file>`. The collection folder decides
+        who can read the file: it gets that collection's access rules. A file whose folder matches no collection is
+        quarantined, never imported with a guessed or broader audience.
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboxStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/inbox/items:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [inbox]
+      operationId: listInboxItems
+      summary: Recent imports, quarantined and failed files for a workspace (admin only)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/InboxItemStatus' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/InboxItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/inbox/scan:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [inbox]
+      operationId: requestInboxScan
+      summary: Ask the worker to scan the watched folders now (admin only)
+      responses:
+        '202':
+          description: Scan requested; the worker picks it up within a few seconds
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InboxStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /ask:
     post:
       tags: [ask]
@@ -492,6 +632,55 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+  /research/fulltext:
+    post:
+      tags: [public-research]
+      operationId: requestFullText
+      summary: Add the open-access full text of a published paper to the public cache
+      description: |
+        Identifies the paper from a public citation address (a DOI, arXiv, Europe PMC or OpenAlex link) or a DOI, then
+        finds a legal open-access PDF, downloads it through the egress guard and allow-listed hosts, and stores its
+        passages as **public** text, separate from every document and collection. The download runs in the worker: poll
+        `getFullTextStatus` until `ready` or `failed`. A paper already in the cache is `ready` immediately and costs
+        nothing. Afterwards, questions with scope `public` or `both` can cite page-numbered passages from the paper.
+
+        Only a public identifier leaves the system, never question or document text. Each workspace has a daily
+        download budget (`FULLTEXT_DAILY_FETCHES`); over budget the reply is `429` with code `fulltext_budget_exceeded`
+        and a message that says so. `422` means the feature is off or the address names no paper.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FullTextFetchRequest' }
+      responses:
+        '200':
+          description: The request, queued, running or already ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FullTextStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /research/fulltext/{request_id}:
+    parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [public-research]
+      operationId: getFullTextStatus
+      summary: Progress of a full-text request
+      description: Only the user who made the request can read it; anyone else gets `404`.
+      responses:
+        '200':
+          description: The request's current status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FullTextStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /threads:
     get:
       tags: [ask]
@@ -785,6 +974,495 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/RetrievalExplain' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # --- learning layer (phase 4). Everything here is private to the caller: progress, study sets and plans of one user
+  # are invisible to every other user, admins included. Generated text always passes claim verification.
+  /documents/{document_id}/progress:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [learning]
+      operationId: getReadingProgress
+      summary: The caller's reading progress in a document (zeros if never opened)
+      responses:
+        '200':
+          description: Progress
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadingProgress' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [learning]
+      operationId: updateReadingProgress
+      summary: Report the page being read and mark pages as read
+      description: |
+        Pages only accumulate. With a known page count the percent is pages read / pages; otherwise it is the
+        furthest position the client reported (documents without pages). Every call counts as opening the document.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReadingProgressUpdate' }
+      responses:
+        '200':
+          description: Progress after the update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadingProgress' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [learning]
+      operationId: resetReadingProgress
+      summary: Forget the caller's progress in a document
+      responses:
+        '204': { description: Reset }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/reading-progress:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [learning]
+      operationId: listReadingProgress
+      summary: Documents the caller has opened, most recent first (only documents they may still read)
+      responses:
+        '200':
+          description: Progress per document
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReadingProgressItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/study-sets:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [learning]
+      operationId: listStudySets
+      summary: The caller's study sets in a workspace
+      responses:
+        '200':
+          description: Study sets (without items)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StudySet' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [learning]
+      operationId: createStudySet
+      summary: Create a study set (a private reading list; it grants no access to anything)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudySetCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudySetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /study-sets/{study_set_id}:
+    parameters:
+      - name: study_set_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [learning]
+      operationId: getStudySet
+      summary: A study set with its items and progress roll-up
+      description: Documents the caller can no longer read are left out of the items and of the roll-up.
+      responses:
+        '200':
+          description: The study set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudySetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [learning]
+      operationId: updateStudySet
+      summary: Rename a study set or edit its description and notes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudySetUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudySetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [learning]
+      operationId: deleteStudySet
+      summary: Delete a study set (documents are not touched)
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /study-sets/{study_set_id}/items:
+    parameters:
+      - name: study_set_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [learning]
+      operationId: addStudySetItem
+      summary: Add a workspace document, or a public paper by reference (title and link only)
+      description: A document the caller may not read is reported as 404, exactly like fetching it directly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudySetItemCreate' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudySetItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /study-sets/{study_set_id}/items/{item_id}:
+    parameters:
+      - name: study_set_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: item_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [learning]
+      operationId: updateStudySetItem
+      summary: Edit an item's note or move it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudySetItemUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudySetItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [learning]
+      operationId: removeStudySetItem
+      summary: Remove an item from a study set
+      responses:
+        '204': { description: Removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/learning-plans:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [learning]
+      operationId: listLearningPlans
+      summary: The caller's learning plans in a workspace
+      responses:
+        '200':
+          description: Plans (without steps)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/LearningPlanSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [learning]
+      operationId: createLearningPlan
+      summary: Generate a reading plan from a study set, or from a topic and selected documents
+      description: |
+        The steps, their order, pages, effort and weeks are computed from the documents' structure. Each step's
+        learning objective is generated and then verified like an answer to /ask: unsupported claims are dropped and a
+        step with nothing supported carries a refusal (a topic plan leaves such steps out). Documents the caller may
+        not read are reported as 404. Runs in private mode on the local model.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningPlanCreate' }
+      responses:
+        '201':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningPlan' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /learning-plans/{plan_id}:
+    parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [learning]
+      operationId: getLearningPlan
+      summary: A plan with its steps, objectives (verified answers) and progress
+      description: Steps whose document the caller can no longer read are left out, and so are citations they can no longer read.
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningPlan' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [learning]
+      operationId: deleteLearningPlan
+      summary: Delete a plan and its generated objectives
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /learning-plans/{plan_id}/steps/{step_id}:
+    parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: step_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [learning]
+      operationId: updatePlanStep
+      summary: Mark a step done or not done
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanStepUpdate' }
+      responses:
+        '200':
+          description: The plan after the change
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningPlan' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/learning/summarize:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [learning]
+      operationId: summarizeDocument
+      summary: Summarize one document as verified claims with citations (or a refusal)
+      description: |
+        Reads a sample of the document's sections (all of them for a short document) and returns an ordinary answer:
+        every claim has a checked quote. `notices` says when only part of a long document was read. A document the
+        caller may not read is reported as 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SummarizeRequest' }
+      responses:
+        '200':
+          description: A verified summary, or a refusal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Answer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /workspaces/{workspace_id}/learning/compare:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [learning]
+      operationId: compareDocuments
+      summary: Compare 2 to 5 documents on a stated aspect, as verified claims with citations (or a refusal)
+      description: |
+        Each claim cites the documents it is about; a difference or agreement needs a quote from every document it
+        names. `notices` lists documents with no supported statement on the aspect. If any document id is unreadable
+        or unknown the whole request is a 404, without saying which one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompareRequest' }
+      responses:
+        '200':
+          description: A verified comparison, or a refusal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Answer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # --- phase 5: sign-in options, audit log, dashboard ---------------------------------------
+  /auth/config:
+    get:
+      tags: [auth]
+      operationId: getAuthConfig
+      summary: What the login page may offer (password form, single sign-on button)
+      security: []
+      responses:
+        '200':
+          description: Sign-in options
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthConfig' }
+  /auth/oidc/login:
+    get:
+      tags: [auth]
+      operationId: oidcLogin
+      summary: Start single sign-on (browser navigation; 404 unless OIDC_ENABLED)
+      description: |
+        Redirects the browser to the identity provider (authorization-code flow with PKCE). The one-time state,
+        nonce and PKCE verifier are kept in a short-lived signed HttpOnly cookie scoped to `/api/v1/auth/oidc`.
+      security: []
+      responses:
+        '302': { description: Redirect to the identity provider }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/oidc/callback:
+    get:
+      tags: [auth]
+      operationId: oidcCallback
+      summary: Finish single sign-on (browser navigation; the identity provider redirects here)
+      description: |
+        Validates state, exchanges the code, verifies the ID token (signature via JWKS, issuer, audience, expiry,
+        nonce) and maps it to a local user by verified e-mail. Always redirects to the web app: on success to
+        `/#oidc_token=<CiteSure JWT>`, on failure to `/#oidc_error=<short code>` (a URL fragment is never sent to a server).
+      security: []
+      parameters:
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        '302': { description: Redirect to the web app }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /workspaces/{workspace_id}/audit-events:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [audit]
+      operationId: listAuditEvents
+      summary: The audit log (admin only), newest first
+      description: |
+        Events of this workspace plus sign-ins of its members. Entries hold ids, counts and hashes, never document
+        or question text.
+      parameters:
+        - { name: actor, in: query, required: false, schema: { type: string }, description: 'User id, or part of an e-mail address' }
+        - { name: action, in: query, required: false, schema: { type: string }, description: 'Exact action, e.g. document.delete' }
+        - { name: since, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: until, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: A page of events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEventPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/audit-events/export:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [audit]
+      operationId: exportAuditEvents
+      summary: Download the filtered audit log as CSV, oldest first (admin only; the export is itself logged)
+      parameters:
+        - { name: actor, in: query, required: false, schema: { type: string } }
+        - { name: action, in: query, required: false, schema: { type: string } }
+        - { name: since, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: until, in: query, required: false, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: CSV file (at most 50,000 rows)
+          content:
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /workspaces/{workspace_id}/audit-events/verify:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [audit]
+      operationId: verifyAuditChain
+      summary: Re-compute the audit log's hash chain (admin only)
+      description: Checks the whole log (it is one chain for the system), not only this workspace's entries.
+      responses:
+        '200':
+          description: The result of the check
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditChainStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /workspaces/{workspace_id}/dashboard:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [dashboard]
+      operationId: getDashboard
+      summary: Operational numbers for the last N days (admin only)
+      parameters:
+        - { name: days, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 365, default: 30 } }
+      responses:
+        '200':
+          description: Aggregates only; no question or document text
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
@@ -1125,6 +1803,41 @@ components:
           items: { type: string }
         explanation: { type: string, description: Plain-language reason a blocked query was blocked }
 
+    FullTextFetchRequest:
+      type: object
+      required: [workspace_id, url]
+      properties:
+        workspace_id: { type: string, format: uuid, description: The workspace whose daily download budget pays for this }
+        url:
+          type: string
+          minLength: 8
+          maxLength: 2000
+          description: The paper's public address, as in a citation (doi.org, arxiv.org, europepmc.org or openalex.org)
+        doi:
+          type: [string, 'null']
+          maxLength: 300
+          description: The paper's DOI, when known; used instead of `url`
+    FullTextStatus:
+      type: object
+      required: [id, status, title, passages, pages, cached, error, message, fetches_remaining, egress]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, ready, failed] }
+        title: { type: [string, 'null'], description: The paper as it is cited, once it is in the cache }
+        passages: { type: [integer, 'null'], description: Number of passages added }
+        pages: { type: [integer, 'null'] }
+        cached: { type: boolean, description: Served from the cache; nothing was downloaded or charged }
+        error:
+          type: [string, 'null']
+          description: |
+            Reason code of a failure: unsupported_source, no_open_access, host_not_allowed, not_pdf, too_large,
+            too_long, unreadable, timeout, fetch_failed, blocked, disabled or internal_error
+        message: { type: [string, 'null'], description: What to tell the user about the failure }
+        fetches_remaining: { type: integer, minimum: 0, description: Downloads left in this workspace's daily budget }
+        egress:
+          type: array
+          description: Where the request went (hosts and the public identifier sent); empty for a cached paper
+          items: { $ref: '#/components/schemas/EgressRecord' }
     Citation:
       type: object
       required: [chunk_id, document_id, document_title, quote, quote_start, quote_end, heading_path, page_start, page_end]
@@ -1458,9 +2171,451 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Candidate' }
 
+    ReadingProgress:
+      type: object
+      required: [document_id, last_page, pages_read, percent, last_opened_at, updated_at]
+      properties:
+        document_id: { type: string, format: uuid }
+        last_page: { type: [integer, 'null'] }
+        pages_read: { type: array, items: { type: integer } }
+        percent: { type: number, minimum: 0, maximum: 100 }
+        last_opened_at: { type: [string, 'null'], format: date-time, description: Null until the document was opened }
+        updated_at: { type: [string, 'null'], format: date-time }
+    ReadingProgressUpdate:
+      type: object
+      properties:
+        page: { type: [integer, 'null'], minimum: 1, maximum: 100000, description: The page being read }
+        mark_read: { type: boolean, default: false, description: Count `page` as read }
+        pages_read: { type: array, maxItems: 5000, items: { type: integer, minimum: 1 }, description: Further pages to mark as read }
+        percent: { type: [number, 'null'], minimum: 0, maximum: 100, description: Furthest position for documents without pages }
+    ReadingProgressItem:
+      type: object
+      required: [document_id, document_title, page_count, last_page, pages_read, percent, last_opened_at]
+      properties:
+        document_id: { type: string, format: uuid }
+        document_title: { type: string }
+        page_count: { type: [integer, 'null'] }
+        last_page: { type: [integer, 'null'] }
+        pages_read: { type: array, items: { type: integer } }
+        percent: { type: number }
+        last_opened_at: { type: string, format: date-time }
+    ProgressRollup:
+      type: object
+      required: [documents_total, documents_started, documents_finished, percent]
+      properties:
+        documents_total: { type: integer }
+        documents_started: { type: integer }
+        documents_finished: { type: integer }
+        percent: { type: number, description: Mean reading progress over the documents (unopened ones count as 0) }
+    StudySet:
+      type: object
+      required: [id, workspace_id, name, description, notes, item_count, progress, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        notes: { type: string }
+        item_count: { type: integer }
+        progress: { $ref: '#/components/schemas/ProgressRollup' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    StudySetItemKind:
+      type: string
+      enum: [document, reference]
+    StudySetItem:
+      type: object
+      required: [id, position, kind, document_id, title, url, source, note, page_count, percent, added_at]
+      properties:
+        id: { type: string, format: uuid }
+        position: { type: integer }
+        kind: { $ref: '#/components/schemas/StudySetItemKind' }
+        document_id: { type: [string, 'null'], format: uuid }
+        title: { type: string }
+        url: { type: [string, 'null'], description: Link of a saved public paper }
+        source: { type: [string, 'null'] }
+        note: { type: string }
+        page_count: { type: [integer, 'null'] }
+        percent: { type: [number, 'null'], description: The caller's reading progress; null for a saved public paper }
+        added_at: { type: string, format: date-time }
+    StudySetDetail:
+      type: object
+      required: [id, workspace_id, name, description, notes, item_count, progress, created_at, updated_at, items]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        notes: { type: string }
+        item_count: { type: integer }
+        progress: { $ref: '#/components/schemas/ProgressRollup' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/StudySetItem' }
+    StudySetCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500, default: '' }
+    StudySetUpdate:
+      type: object
+      properties:
+        name: { type: [string, 'null'], minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        notes: { type: [string, 'null'], maxLength: 20000 }
+    ReferenceInput:
+      type: object
+      required: [title, url]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300 }
+        url: { type: string, minLength: 8, maxLength: 1000, description: An http(s) link; nothing is fetched }
+        source: { type: [string, 'null'], maxLength: 40, description: 'Where the paper was found, e.g. arxiv' }
+    StudySetItemCreate:
+      type: object
+      description: Exactly one of `document_id` and `reference`.
+      properties:
+        document_id: { type: [string, 'null'], format: uuid }
+        reference:
+          oneOf:
+            - $ref: '#/components/schemas/ReferenceInput'
+            - type: 'null'
+        note: { type: string, maxLength: 2000, default: '' }
+    StudySetItemUpdate:
+      type: object
+      properties:
+        note: { type: [string, 'null'], maxLength: 2000 }
+        position: { type: [integer, 'null'], minimum: 0 }
+    PlanStep:
+      type: object
+      required: [id, position, week, document_id, document_title, label, page_start, page_end, est_minutes, done, done_at, reading_percent, objective]
+      properties:
+        id: { type: string, format: uuid }
+        position: { type: integer, description: From 1 }
+        week: { type: integer, description: From 1; steps are filled into weeks of `hours_per_week` hours }
+        document_id: { type: string, format: uuid }
+        document_title: { type: string }
+        label: { type: string, description: Section heading(s) of the document this step covers; empty if it has none }
+        page_start: { type: [integer, 'null'] }
+        page_end: { type: [integer, 'null'] }
+        est_minutes: { type: integer }
+        done: { type: boolean }
+        done_at: { type: [string, 'null'], format: date-time }
+        reading_percent: { type: number, description: The caller's reading progress in the document }
+        objective:
+          oneOf:
+            - $ref: '#/components/schemas/Answer'
+            - type: 'null'
+          description: Verified claims about what the step covers, or a refusal
+    LearningPlanSummary:
+      type: object
+      required: [id, workspace_id, study_set_id, title, topic, hours_per_week, weeks, total_minutes, steps_done, steps_total, percent, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        study_set_id: { type: [string, 'null'], format: uuid }
+        title: { type: string }
+        topic: { type: [string, 'null'] }
+        hours_per_week: { type: number }
+        weeks: { type: integer }
+        total_minutes: { type: integer }
+        steps_done: { type: integer }
+        steps_total: { type: integer }
+        percent: { type: number }
+        created_at: { type: string, format: date-time }
+    LearningPlan:
+      type: object
+      required: [id, workspace_id, study_set_id, title, topic, hours_per_week, weeks, total_minutes, steps_done, steps_total, percent, created_at, steps]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        study_set_id: { type: [string, 'null'], format: uuid }
+        title: { type: string }
+        topic: { type: [string, 'null'] }
+        hours_per_week: { type: number }
+        weeks: { type: integer }
+        total_minutes: { type: integer }
+        steps_done: { type: integer }
+        steps_total: { type: integer }
+        percent: { type: number }
+        created_at: { type: string, format: date-time }
+        steps:
+          type: array
+          items: { $ref: '#/components/schemas/PlanStep' }
+    LearningPlanCreate:
+      type: object
+      description: Give `study_set_id`, or `document_ids` (optionally with a `topic`), not both.
+      properties:
+        title: { type: [string, 'null'], maxLength: 200 }
+        study_set_id: { type: [string, 'null'], format: uuid }
+        topic: { type: [string, 'null'], minLength: 3, maxLength: 300 }
+        document_ids:
+          type: array
+          maxItems: 50
+          items: { type: string, format: uuid }
+        hours_per_week: { type: number, exclusiveMinimum: 0, maximum: 80, default: 4 }
+    PlanStepUpdate:
+      type: object
+      required: [done]
+      properties:
+        done: { type: boolean }
+    SummarizeRequest:
+      type: object
+      required: [document_id]
+      properties:
+        document_id: { type: string, format: uuid }
+        focus: { type: [string, 'null'], minLength: 3, maxLength: 300, description: Summarize only what the document says about this }
+    CompareRequest:
+      type: object
+      required: [document_ids, aspect]
+      properties:
+        document_ids:
+          type: array
+          minItems: 2
+          maxItems: 5
+          items: { type: string, format: uuid }
+        aspect: { type: string, minLength: 3, maxLength: 300, description: 'What to compare, e.g. "data retention"' }
+
+    # --- phase 5 ---
+    AuthConfig:
+      type: object
+      required: [password_login, registration, oidc_enabled, oidc_provider_name]
+      properties:
+        password_login: { type: boolean, description: False when OIDC_ONLY is set }
+        registration: { type: boolean }
+        oidc_enabled: { type: boolean }
+        oidc_provider_name: { type: [string, 'null'], description: 'Label for the single sign-on button' }
+    AuditEvent:
+      type: object
+      required: [seq, created_at, actor_id, actor_email, action, target, workspace_id, metadata, hash]
+      properties:
+        seq: { type: integer, description: Position in the hash chain }
+        created_at: { type: string, format: date-time }
+        actor_id: { type: [string, 'null'], format: uuid }
+        actor_email: { type: [string, 'null'] }
+        action: { type: string, examples: [document.delete] }
+        target: { type: [string, 'null'], examples: ['document:0b1f...'] }
+        workspace_id: { type: [string, 'null'], format: uuid }
+        metadata: { type: object, additionalProperties: true, description: 'Ids, counts, lengths and hashes only' }
+        hash: { type: string, description: 'SHA-256 over the previous entry hash and this entry''s content' }
+    AuditEventPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEvent' }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+    AuditChainStatus:
+      type: object
+      required: [ok, checked, head_seq, head_hash, first_bad_seq, reason, starts_at_seq]
+      properties:
+        ok: { type: boolean }
+        checked: { type: integer }
+        head_seq: { type: [integer, 'null'] }
+        head_hash: { type: [string, 'null'], description: 'Keep a copy elsewhere: it reveals removal of the newest entries' }
+        first_bad_seq: { type: [integer, 'null'] }
+        reason: { type: [string, 'null'] }
+        starts_at_seq: { type: [integer, 'null'], description: 'Greater than 1 when an operator removed old entries' }
+    DashboardDay:
+      type: object
+      required: [date, questions, answered, refused, cost_usd]
+      properties:
+        date: { type: string, format: date }
+        questions: { type: integer }
+        answered: { type: integer }
+        refused: { type: integer }
+        cost_usd: { type: number }
+    DashboardQuestions:
+      type: object
+      required: [total, answered, refused, refusal_rate, claims_shown, claims_dropped, dropped_claim_rate]
+      properties:
+        total: { type: integer }
+        answered: { type: integer }
+        refused: { type: integer }
+        refusal_rate: { type: number, minimum: 0, maximum: 1 }
+        claims_shown: { type: integer }
+        claims_dropped: { type: integer }
+        dropped_claim_rate: { type: number, minimum: 0, maximum: 1, description: 'Dropped / (shown + dropped)' }
+    DashboardLatency:
+      type: object
+      required: [p50_ms, p95_ms]
+      properties:
+        p50_ms: { type: [number, 'null'] }
+        p95_ms: { type: [number, 'null'] }
+    DashboardCost:
+      type: object
+      required: [total_usd, per_question_usd, tokens_in, tokens_out]
+      properties:
+        total_usd: { type: number }
+        per_question_usd: { type: number }
+        tokens_in: { type: integer }
+        tokens_out: { type: integer }
+    DashboardCount:
+      type: object
+      required: [label, count]
+      properties:
+        label: { type: string }
+        count: { type: integer }
+    DashboardDocuments:
+      type: object
+      required: [total, chunks, by_status]
+      properties:
+        total: { type: integer }
+        chunks: { type: integer }
+        by_status:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardCount' }
+    IngestFailure:
+      type: object
+      required: [document_id, title, error, created_at]
+      properties:
+        document_id: { type: string, format: uuid }
+        title: { type: string }
+        error: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+    DashboardIngest:
+      type: object
+      required: [failed_documents, failed_jobs, recent_failures]
+      properties:
+        failed_documents: { type: integer }
+        failed_jobs: { type: integer }
+        recent_failures:
+          type: array
+          items: { $ref: '#/components/schemas/IngestFailure' }
+    DashboardEgress:
+      type: object
+      required: [destination, status, count]
+      properties:
+        destination: { type: string }
+        status: { type: string }
+        count: { type: integer }
+    DashboardFeedback:
+      type: object
+      required: [up, down, positive_ratio]
+      properties:
+        up: { type: integer }
+        down: { type: integer }
+        positive_ratio: { type: [number, 'null'] }
+    Dashboard:
+      type: object
+      required: [workspace_id, days, generated_at, questions, per_day, latency, cost, documents, ingest, egress, feedback]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        days: { type: integer }
+        generated_at: { type: string, format: date-time }
+        questions: { $ref: '#/components/schemas/DashboardQuestions' }
+        per_day:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardDay' }
+        latency: { $ref: '#/components/schemas/DashboardLatency' }
+        cost: { $ref: '#/components/schemas/DashboardCost' }
+        documents: { $ref: '#/components/schemas/DashboardDocuments' }
+        ingest: { $ref: '#/components/schemas/DashboardIngest' }
+        egress:
+          type: array
+          items: { $ref: '#/components/schemas/DashboardEgress' }
+        feedback: { $ref: '#/components/schemas/DashboardFeedback' }
     Health:
       type: object
       required: [status, database]
       properties:
         status: { type: string, enum: [ok, degraded] }
         database: { type: boolean }
+
+    # --- phase 2 schemas: annotations and inbox ---
+    AnnotationColor:
+      type: string
+      enum: [yellow, green, blue, pink, orange]
+    NormalizedRect:
+      type: object
+      description: A rectangle as fractions (0 to 1) of the page width and height, origin top-left, so it survives zooming.
+      required: [x, y, w, h]
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        w: { type: number, minimum: 0, maximum: 1 }
+        h: { type: number, minimum: 0, maximum: 1 }
+    Annotation:
+      type: object
+      required: [id, document_id, page, rects, text, note, color, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        page: { type: integer, minimum: 1 }
+        rects:
+          type: array
+          items: { $ref: '#/components/schemas/NormalizedRect' }
+        text: { type: string, description: The selected text }
+        note: { type: string }
+        color: { $ref: '#/components/schemas/AnnotationColor' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AnnotationCreate:
+      type: object
+      required: [page, rects, text]
+      properties:
+        page: { type: integer, minimum: 1 }
+        rects:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/NormalizedRect' }
+        text: { type: string, minLength: 1, maxLength: 2000 }
+        note: { type: string, maxLength: 2000, default: '' }
+        color: { $ref: '#/components/schemas/AnnotationColor' }
+    AnnotationUpdate:
+      type: object
+      properties:
+        note: { type: string, maxLength: 2000 }
+        color: { $ref: '#/components/schemas/AnnotationColor' }
+
+    InboxItemStatus:
+      type: string
+      enum: [imported, duplicate, quarantined, failed]
+    InboxItem:
+      type: object
+      required: [id, folder, filename, size_bytes, status, reason, collection_id, collection_name, document_id, document_status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        folder: { type: string, description: 'Folder the file was found in, relative to the inbox root' }
+        filename: { type: string }
+        size_bytes: { type: integer }
+        status: { $ref: '#/components/schemas/InboxItemStatus' }
+        reason: { type: [string, 'null'], description: Why a file was quarantined or failed }
+        collection_id: { type: [string, 'null'], format: uuid }
+        collection_name: { type: [string, 'null'] }
+        document_id: { type: [string, 'null'], format: uuid }
+        document_status: { type: [string, 'null'], description: 'Ingestion status of the imported document' }
+        created_at: { type: string, format: date-time }
+    InboxFolder:
+      type: object
+      required: [folder, collection_id, collection_name, matched, imported, duplicates, quarantined, failed, last_activity_at]
+      properties:
+        folder: { type: string, description: 'Path to drop files into, relative to the inbox root' }
+        collection_id: { type: [string, 'null'], format: uuid }
+        collection_name: { type: [string, 'null'] }
+        matched: { type: boolean, description: False for a folder that matches no collection (its files are quarantined) }
+        imported: { type: integer }
+        duplicates: { type: integer }
+        quarantined: { type: integer }
+        failed: { type: integer }
+        last_activity_at: { type: [string, 'null'], format: date-time }
+    InboxStatus:
+      type: object
+      required: [enabled, workspace_folder, poll_seconds, max_file_mb, allowed_types, last_scan_at, scan_requested, folders]
+      properties:
+        enabled: { type: boolean, description: False when INBOX_ROOT is not set }
+        workspace_folder: { type: string, description: 'First folder level for this workspace' }
+        poll_seconds: { type: integer }
+        max_file_mb: { type: integer }
+        allowed_types: { type: array, items: { type: string } }
+        last_scan_at: { type: [string, 'null'], format: date-time }
+        scan_requested: { type: boolean }
+        folders:
+          type: array
+          items: { $ref: '#/components/schemas/InboxFolder' }

@@ -1,4 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { API_BASE } from "../api/client";
+import { useAuthConfig } from "../api/hooksAdmin";
 import { useAuth } from "../auth/AuthContext";
 import { Icon, Logo, type IconName } from "../components/Icon";
 import { Button, ErrorBanner, Field, inputClass } from "../components/ui";
@@ -9,13 +11,46 @@ const POINTS: { icon: IconName; text: string }[] = [
   { icon: "lock", text: "You only ever see answers from documents you may read" },
 ];
 
+const OIDC_ERRORS: Record<string, string> = {
+  no_account: "There is no CiteSure account for your e-mail address yet. Ask an admin to add you.",
+  email_unverified: "Your identity provider has not verified your e-mail address.",
+  no_email: "Your identity provider did not share an e-mail address.",
+  no_flow: "The sign-in attempt expired. Please try again.",
+  bad_state: "The sign-in attempt did not match this browser. Please try again.",
+  provider_access_denied: "Sign-in was cancelled at the identity provider.",
+  provider_unreachable: "The identity provider could not be reached.",
+};
+
+/** Reads (and removes) the result the server put in the URL fragment after a single sign-on. */
+export function takeOidcResult(): { token?: string; error?: string } {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const token = params.get("oidc_token") ?? undefined;
+  const error = params.get("oidc_error") ?? undefined;
+  if (token || error) window.history.replaceState(null, "", window.location.pathname + window.location.search); // keep the token out of history
+  return { token, error };
+}
+
 export function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithToken } = useAuth();
+  const config = useAuthConfig().data;
+  const passwordLogin = config?.password_login ?? true;
+  const canRegister = config?.registration ?? true;
   const [createAccount, setCreateAccount] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const { token, error: code } = takeOidcResult();
+    if (code) setError(new Error(OIDC_ERRORS[code] ?? "Single sign-on failed. Please try again or ask an admin."));
+    if (token) {
+      setBusy(true);
+      signInWithToken(token)
+        .catch(setError)
+        .finally(() => setBusy(false));
+    }
+  }, [signInWithToken]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -71,7 +106,21 @@ export function LoginPage() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">{createAccount ? "Create your account" : "Welcome back"}</h1>
             <p className="mt-1 text-sm text-slate-500">{createAccount ? "It takes a few seconds." : "Sign in to CiteSure. Answers you can verify."}</p>
           </div>
-          <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+          {config?.oidc_enabled && (
+            <>
+              <a
+                href={`${API_BASE}/auth/oidc/login`}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                Sign in with {config.oidc_provider_name ?? "single sign-on"}
+              </a>
+              {passwordLogin && <p className="text-center text-xs text-slate-400">or use your password</p>}
+              {!passwordLogin && <ErrorBanner error={error} />}
+            </>
+          )}
+          {passwordLogin && (
+          <form onSubmit={submit} className="space-y-4">
             <Field label="Email">
               <input className={inputClass} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
@@ -90,10 +139,14 @@ export function LoginPage() {
             <Button type="submit" className="w-full py-2.5" disabled={busy}>
               {createAccount ? "Create account" : "Sign in"}
             </Button>
-            <button type="button" className="w-full text-center text-sm font-medium text-indigo-700 hover:underline" onClick={() => setCreateAccount((v) => !v)}>
-              {createAccount ? "I already have an account" : "Create an account"}
-            </button>
+            {canRegister && (
+              <button type="button" className="w-full text-center text-sm font-medium text-indigo-700 hover:underline" onClick={() => setCreateAccount((v) => !v)}>
+                {createAccount ? "I already have an account" : "Create an account"}
+              </button>
+            )}
           </form>
+          )}
+          </div>
           <p className="text-center text-xs text-slate-400">Demo logins are listed in the README (employee@acme.example, hr@acme.example).</p>
         </div>
       </div>

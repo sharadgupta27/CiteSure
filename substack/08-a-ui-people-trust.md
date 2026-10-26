@@ -3,7 +3,7 @@
 *Citations change how an AI answer feels, if you design them so people can actually use them.*
 
 **You will learn:** how to present verified answers, how to highlight the exact quoted words, how to read a streaming response, and how to test frontend logic.
-**You will build:** a React app with an Ask page, source viewer, document upload with live status, workspace admin, feedback queue and quality dashboard, and 59 tests.
+**You will build:** a React app with an Ask page, source viewer, document upload with live status, workspace admin, feedback queue and quality dashboard, and well over a hundred tests (59 when this chapter was first written, 165 now).
 **Time:** about 4 hours. **Code:** `frontend/src/` (`api/`, `lib/`, `components/`, `pages/`).
 
 ---
@@ -35,13 +35,13 @@ frontend/src/
   api/        client.ts (typed HTTP, generated types), stream.ts (SSE), hooks.ts (TanStack Query)
   auth/       who is signed in, which workspace is selected
   components/ AnswerView, SourceViewer, FeedbackBar, Layout, small UI pieces
-  pages/      Login, Ask, Documents, Workspace, Feedback, Quality
+  pages/      Login, Ask, Documents, Workspace, Feedback, Quality (later: Learn, Inbox, Dashboard, Audit)
   lib/        pure logic: citations, highlight, stream reducer, metrics  (all unit-tested)
 ```
 
 One rule keeps it tidy: **pages never call the network.** They use hooks from `api/hooks.ts`, which use the one typed client in `api/client.ts`. A lint rule (`no-restricted-globals` for `fetch`) fails the build if anyone calls `fetch` elsewhere. When the backend changes, there is exactly one place to look.
 
-The other rule: put anything that is *logic* (not layout) into plain functions in `lib/`, where it can be tested without a browser. That is where most of the 59 tests live.
+The other rule: put anything that is *logic* (not layout) into plain functions in `lib/`, where it can be tested without a browser. That is where most of the tests live.
 
 ## Detail 1: numbering citations
 
@@ -150,7 +150,7 @@ Feedback: a thumbs-down with a comment, and the admin queue where it can be prom
 
 ![The admin feedback queue](images/11-feedback-queue.png)
 
-## Testing a frontend (59 tests)
+## Testing a frontend
 
 | What | How |
 |---|---|
@@ -160,6 +160,10 @@ Feedback: a thumbs-down with a comment, and the admin queue where it can be prom
 | The Ask page | a fake streaming backend; asserts the stages, the answer, the chips, a refusal, an error message, and that feedback is sent |
 
 Run them with `cd frontend && npm run test`. Also `npm run lint`, `npm run typecheck` and `npm run build`.
+
+## Screens added later
+
+The app grew after this chapter: a **PDF viewer** that opens citations on the real page, **Learn** (study sets, plans, reading progress), and admin pages for **watched folders**, a **dashboard** and an **audit log**. They follow the same two rules (network code in one folder, logic in plain functions). Chapter 16 shows them.
 
 ## What went wrong (and what it taught me)
 

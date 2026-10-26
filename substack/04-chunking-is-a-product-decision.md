@@ -63,7 +63,7 @@ class Section:
 | Markdown | `markdown-it-py` | headings define the path; list items and table rows become their own lines |
 | HTML | `beautifulsoup4` | scripts, styles, navigation and footers removed; only "leaf" blocks are read so a list inside a list is not counted twice |
 | DOCX | `python-docx` | heading styles become the path; tables are read in order; merged cells (which repeat their text) are de-duplicated |
-| PDF | `pypdf` | one section per page, with the page number; hyphenated line breaks are repaired; a scanned PDF with no text fails with a *clear message* (no OCR in the MVP) |
+| PDF | PyMuPDF (chapter 16; this chapter's first version used `pypdf`) | sections follow headings, each with its page number; tables with three or more columns are rebuilt; hyphenated line breaks are repaired; a scanned PDF with no text fails with a *clear message* (no OCR in the MVP) |
 
 Because everything becomes `Section`s, the chunker, the search and the citation viewer need no special cases for any file type. Adding a new type later (a PPTX, say) means writing *one* new parser. That is exactly what the `ingest-new-doc-type` skill in chapter 12 walks an agent through.
 

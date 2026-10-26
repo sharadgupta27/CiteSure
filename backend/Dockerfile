@@ -2,6 +2,10 @@
 # Build from the repository root:  docker build -f backend/Dockerfile .
 # One image runs the API, the worker, the migrations and the seed script (only the command differs).
 
+# WITH_OCR=true adds Tesseract (plus the language data named in --build-arg OCR_LANGS="eng deu") so scanned PDFs can be
+# read when OCR_ENABLED=true. The default image is unchanged: the OCR stage is only built when it is selected.
+ARG WITH_OCR=false
+
 FROM python:3.12-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -30,7 +34,21 @@ TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/opt/models'); TextCrossEncod
     else mkdir -p /opt/models; fi
 
 # --- runtime: no compilers, no uv cache, non-root user --------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim AS runtime-os-false
+
+FROM python:3.12-slim AS runtime-os-true
+ARG OCR_LANGS="eng"
+# The tessdata folder differs between Debian releases, so link whichever one the packages created to a fixed path.
+RUN set -eux; \
+    packages="tesseract-ocr"; \
+    for lang in $(echo "$OCR_LANGS" | tr '+,' '  '); do packages="$packages tesseract-ocr-$lang"; done; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends $packages; \
+    rm -rf /var/lib/apt/lists/*; \
+    ln -s "$(dirname "$(find /usr/share/tesseract-ocr -name eng.traineddata | head -n 1)")" /usr/share/tessdata
+ENV TESSDATA_PREFIX=/usr/share/tessdata
+
+FROM runtime-os-${WITH_OCR} AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/srv/citesure/backend/.venv/bin:$PATH" \

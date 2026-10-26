@@ -5,7 +5,7 @@ never given tools: they receive text and return structured JSON, nothing else (n
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 from app.rag.generation.prompt import SourceBlock
 from app.rag.generation.schema import AnswerDraft, CorrectnessVerdict, EntailmentVerdict
@@ -26,6 +26,8 @@ class GenerationRequest:
     user: str  # the fully rendered user message (sources + question)
     question: str
     sources: list[SourceBlock]
+    # What the caller wants. Real models learn this from `system`; the offline fake has no prompt to read, so it uses it.
+    task: Literal["answer", "summary", "compare"] = "answer"
 
 
 class LLMProvider(Protocol):

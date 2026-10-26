@@ -48,7 +48,7 @@ Every stage is a pure function with typed input and output (`list[ScoredChunk]`,
 | Markdown | `markdown-it-py` | headings -> heading paths; list items and table rows become their own lines; raw HTML tags are dropped |
 | HTML | `beautifulsoup4` | scripts, styles, nav and footers removed; leaf blocks only so nested lists are not duplicated |
 | DOCX | `python-docx` | heading styles -> heading paths; tables in reading order; merged cells de-duplicated |
-| PDF | `pypdf` | one section per page with page numbers (so citations can say "p. 3"); soft line wraps and hyphenation repaired; scanned PDFs fail with a clear message |
+| PDF | PyMuPDF | sections follow headings, with page numbers (so citations can say "p. 3"); tables of three or more columns rebuilt as rows (long ones sliced, header repeated); soft line wraps and hyphenation repaired; scanned PDFs fail with a clear message unless OCR is enabled ([vault-and-ocr.md](vault-and-ocr.md)) |
 
 Throughput, **measured** on a Windows laptop with the fake embedder (`python -m app.seed` prints it): 20 documents in 0.6 s, about 1,900 documents/minute (documents are short: one chunk each). With a real embedding model the embedding step dominates (the worker batches 64 chunks per call); measure with `WITH_ML=true`.
 The upload path never parses: it validates (magic bytes, size, zip-bomb limits, duplicate sha256), stores the blob and queues a job; the worker moves the document through `queued → parsing → embedding → ready` and the UI polls.

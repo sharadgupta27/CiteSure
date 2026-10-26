@@ -121,7 +121,7 @@ def test_documented_success_codes_match(spec: dict[str, Any], generated: dict[st
 
 
 def test_every_protected_operation_declares_security(spec: dict[str, Any]) -> None:
-    public = {"registerUser", "loginUser", "healthz", "metrics"}
+    public = {"registerUser", "loginUser", "healthz", "metrics", "getAuthConfig", "oidcLogin", "oidcCallback"}
     for path, item in spec["paths"].items():
         for method, op in item.items():
             if method in METHODS and op["operationId"] not in public:

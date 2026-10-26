@@ -1,6 +1,6 @@
 # Publishing notes for the Substack series
 
-Fourteen chapters, an index and a glossary, all in Markdown. Substack's editor accepts pasted rich text but not Markdown files directly, so use one of the two routes below.
+Sixteen chapters, an index and a glossary, all in Markdown. Substack's editor accepts pasted rich text but not Markdown files directly, so use one of the two routes below.
 
 ## Route A: paste into the editor
 
@@ -37,8 +37,20 @@ Fourteen chapters, an index and a glossary, all in Markdown. Substack's editor a
 | 12 | `fig-09-agent-pack.png`, `fig-10-hook.png` |
 | 13 | `fig-11-threats.png` |
 | 14 | `fig-06-results.png` |
+| 15 | none |
+| 16 | `13-answer-from-pdf.png`, `14-pdf-viewer-citation.png`, `18-inbox-watched-folders.png`, `12-research-scope-preview.png`, `15-learn-overview.png`, `16-study-set.png`, `17-learning-plan.png`, `19-admin-dashboard.png`, `20-audit-log.png` |
 
-Chapter 2 has no image. Screenshots were captured from the running app with `SCREENSHOTS=1 npx playwright test screenshots grafana-shot` in `e2e/`. Some screenshots (for example `09-quality-compare.png`) were taken while other evaluation runs existed in the database, so their history lists look busier than a fresh install; re-capture on a clean database if that bothers you.
+Chapter 2 has no image. Screenshots `01`-`11` and `13`-`20` were captured by `e2e/tests/screenshots.spec.ts` from a freshly seeded demo stack (fake models, so they are deterministic and cost nothing). `12-grafana-dashboard.png` comes from the monitoring stack (`grafana-shot.spec.ts`) and was not retaken.
+
+To recapture them, start a throw-away copy of the demo stack **with an empty env file** (Compose reads the `.env` in the project folder automatically, and you do not want your real settings or models in a screenshot), seed it, upload a small PDF, then run the script:
+
+```bash
+docker compose -p citesure-shots --env-file empty.env up -d --build --wait
+docker compose -p citesure-shots --env-file empty.env run --rm api python -m app.seed
+cd e2e && SCREENSHOTS=1 npx playwright test screenshots
+```
+
+The merged-feature shots (`13`-`20`) expect, in the demo workspace: a PDF titled "Visitor And Badge Policy" in the `General` collection, a study set called "Week one: joining Acme", a learning plan called "Onboarding in two weeks", and two files in the watched folder (`INBOX_ROOT` set on the api and worker). Without them the script fails on the first missing element, which is the signal to set them up.
 
 ## Suggested posting plan
 
@@ -50,6 +62,7 @@ Chapter 2 has no image. Screenshots were captured from the running app with `SCR
 | 4 | 8, 9 | A UI people trust; testing a non-deterministic system |
 | 5 | 10, 11 | Shipping honestly; monitoring "up but wrong" |
 | 6 | 12, 13, 14 | Agent guardrails; the threat model; lessons |
+| 7 | 15, 16 | Keeping secrets in while letting research in; merging a second project and running it for real |
 
 Each chapter stands alone, so readers can join at any point. End every post with the "Try it yourself" section; it gives readers something to do and to reply about.
 

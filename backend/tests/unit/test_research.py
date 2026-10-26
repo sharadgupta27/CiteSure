@@ -185,6 +185,7 @@ def mock_network(sent: list[httpx.Request], *, fail: str | None = None) -> httpx
         "api.crossref.org": CROSSREF,
         "api.openalex.org": OPENALEX,
         "www.ebi.ac.uk": EUROPEPMC,
+        "api.semanticscholar.org": SEMANTIC,
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -217,9 +218,9 @@ async def test_search_queries_every_source_with_the_keywords_only() -> None:
     sent: list[httpx.Request] = []
     result = await research(sent).search("How does sparse attention reduce memory?", reranker=LexicalReranker())
     assert result.query == "sparse attention reduce memory"
-    assert {r.destination for r in result.records} == {"arxiv", "crossref", "openalex", "europepmc"}
+    assert {r.destination for r in result.records} == {"arxiv", "crossref", "openalex", "europepmc", "semanticscholar"}
     assert all(r.status == "sent" and r.query == result.query for r in result.records)
-    assert len(sent) == 4
+    assert len(sent) == 5
     for request in sent:  # the only user-derived text on the wire is the keyword query
         assert "How does" not in str(request.url) and "?" not in request.url.params.get("query", "")
     assert result.chunks and all(c.source_type == "public" and c.url for c in result.chunks)
@@ -245,7 +246,7 @@ async def test_personal_data_in_the_question_stops_the_search_even_though_keywor
 async def test_an_edited_query_replaces_the_derived_one_and_is_still_checked() -> None:
     sent: list[httpx.Request] = []
     result = await research(sent).search("What did Project Phoenix conclude?", explicit_query="sparse attention efficiency")
-    assert result.query == "sparse attention efficiency" and len(sent) == 4
+    assert result.query == "sparse attention efficiency" and len(sent) == 5
     blocked_sent: list[httpx.Request] = []
     blocked = await research(blocked_sent, egress_canaries="CANARY-1").search("q q q", explicit_query="CANARY-1 attention")
     assert blocked_sent == [] and blocked.records[0].status == "blocked"

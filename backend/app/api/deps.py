@@ -17,6 +17,7 @@ from app.services.ask import AskService
 from app.services.auth import AuthService
 from app.services.documents import DocumentService
 from app.services.evaluation import EvaluationService
+from app.services.fulltext import FullTextService
 from app.services.workspaces import WorkspaceService
 
 bearer = HTTPBearer(auto_error=False, scheme_name="bearerAuth", bearerFormat="JWT")
@@ -77,6 +78,14 @@ def evaluation_service(
     providers: Providers = Depends(get_providers),
 ) -> EvaluationService:
     return EvaluationService(session, settings, providers)
+
+
+def fulltext_service(
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    providers: Providers = Depends(get_providers),
+) -> FullTextService:
+    return FullTextService(session, settings, providers)
 
 
 def ask_limiter(request: Request) -> RateLimiter:

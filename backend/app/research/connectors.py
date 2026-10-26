@@ -69,6 +69,7 @@ def parse_arxiv(content: bytes) -> list[Paper]:
                 url=link.replace("http://", "https://", 1),
                 authors=tuple(a.findtext("a:name", default="", namespaces=ATOM) for a in entry.findall("a:author", ATOM)),
                 year=_year(entry.findtext("a:published", default="", namespaces=ATOM)),
+                oa_url=link.replace("http://", "https://", 1).replace("/abs/", "/pdf/", 1) if "/abs/" in link else None,
             )
         )
     return _keep(papers)
@@ -139,22 +140,33 @@ def rebuild_abstract(inverted: dict[str, list[int]] | None) -> str:
     return " ".join(positions[i] for i in sorted(positions))
 
 
+def openalex_oa_urls(work: dict[str, Any]) -> list[str]:
+    """Every open-access location OpenAlex knows, best first: the best location's PDF, then the work's `oa_url`
+    (often a landing page, so it ranks after real PDFs), then the PDF of every other open location."""
+    best = work.get("best_oa_location") or {}
+    urls = [best.get("pdf_url"), (work.get("open_access") or {}).get("oa_url")]
+    urls += [loc.get("pdf_url") for loc in work.get("locations") or [] if loc.get("is_oa")]
+    return list(dict.fromkeys(u for u in urls if isinstance(u, str) and u.startswith("https://")))
+
+
+def parse_openalex_work(work: dict[str, Any]) -> Paper:
+    doi = work.get("doi")
+    landing = ((work.get("primary_location") or {}).get("landing_page_url")) or doi or work.get("id", "")
+    oa = openalex_oa_urls(work)
+    return Paper(
+        source="openalex",
+        title=_strip_markup(work.get("display_name") or work.get("title") or ""),
+        text=rebuild_abstract(work.get("abstract_inverted_index")),
+        url=doi or landing,
+        authors=tuple((a.get("author") or {}).get("display_name", "") for a in work.get("authorships", [])[:6]),
+        year=_year(work.get("publication_year")),
+        doi=doi,
+        oa_url=oa[0] if oa else None,
+    )
+
+
 def parse_openalex(content: bytes) -> list[Paper]:
-    papers: list[Paper] = []
-    for work in json.loads(content).get("results", []):
-        doi = work.get("doi")
-        landing = ((work.get("primary_location") or {}).get("landing_page_url")) or doi or work.get("id", "")
-        papers.append(
-            Paper(
-                source="openalex",
-                title=_strip_markup(work.get("display_name") or work.get("title") or ""),
-                text=rebuild_abstract(work.get("abstract_inverted_index")),
-                url=doi or landing,
-                authors=tuple((a.get("author") or {}).get("display_name", "") for a in work.get("authorships", [])[:6]),
-                year=_year(work.get("publication_year")),
-                doi=doi,
-            )
-        )
+    papers = [parse_openalex_work(work) for work in json.loads(content).get("results", [])]
     return _keep([p for p in papers if p.url])
 
 
@@ -169,7 +181,8 @@ class OpenAlexConnector:
             "search": query,
             "per-page": str(limit),
             "filter": "has_abstract:true",
-            "select": "id,doi,display_name,publication_year,authorships,abstract_inverted_index,primary_location",
+            "select": "id,doi,display_name,publication_year,authorships,abstract_inverted_index,primary_location,"
+            "best_oa_location,open_access",
         }
         if self._mailto:
             params["mailto"] = self._mailto
@@ -180,6 +193,18 @@ class OpenAlexConnector:
 # --- Europe PMC (includes PubMed) ----------------------------------------------------------------------------------
 def _europepmc_url(record: dict[str, Any]) -> str:
     return f"https://europepmc.org/article/{quote(str(record.get('source', 'MED')))}/{quote(str(record.get('id', '')))}"
+
+
+def europepmc_oa_url(record: dict[str, Any]) -> str | None:
+    """The open-access PDF of a Europe PMC record: a listed open-access PDF link, else the PMC render service."""
+    for entry in (record.get("fullTextUrlList") or {}).get("fullTextUrl", []):
+        url = entry.get("url") or ""
+        if entry.get("documentStyle") == "pdf" and entry.get("availabilityCode") == "OA" and url.startswith("https://"):
+            return str(url)
+    pmcid = str(record.get("pmcid") or "")
+    if record.get("isOpenAccess") == "Y" and re.fullmatch(r"PMC\d{1,12}", pmcid):
+        return f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmcid}&blobtype=pdf"
+    return None
 
 
 def parse_europepmc(content: bytes) -> list[Paper]:
@@ -195,6 +220,7 @@ def parse_europepmc(content: bytes) -> list[Paper]:
                 authors=tuple(a.strip() for a in (record.get("authorString") or "").rstrip(".").split(",") if a.strip()),
                 year=_year(record.get("pubYear")),
                 doi=doi,
+                oa_url=europepmc_oa_url(record),
             )
         )
     return _keep([p for p in papers if not p.url.endswith("/")])
@@ -220,21 +246,23 @@ class EuropePmcConnector:
 
 
 # --- Semantic Scholar (optional: unauthenticated use is rate limited) -----------------------------------------------
+def parse_semantic_scholar_record(record: dict[str, Any]) -> Paper:
+    doi = (record.get("externalIds") or {}).get("DOI")
+    oa = (record.get("openAccessPdf") or {}).get("url")
+    return Paper(
+        source="semanticscholar",
+        title=_strip_markup(record.get("title", "")),
+        text=_strip_markup(record.get("abstract") or ""),
+        url=record.get("url") or (f"https://doi.org/{doi}" if doi else ""),
+        authors=tuple(a.get("name", "") for a in record.get("authors", [])[:6]),
+        year=_year(record.get("year")),
+        doi=doi,
+        oa_url=oa if isinstance(oa, str) and oa.startswith("https://") else None,
+    )
+
+
 def parse_semantic_scholar(content: bytes) -> list[Paper]:
-    papers: list[Paper] = []
-    for record in json.loads(content).get("data", []):
-        doi = (record.get("externalIds") or {}).get("DOI")
-        papers.append(
-            Paper(
-                source="semanticscholar",
-                title=_strip_markup(record.get("title", "")),
-                text=_strip_markup(record.get("abstract") or ""),
-                url=record.get("url") or (f"https://doi.org/{doi}" if doi else ""),
-                authors=tuple(a.get("name", "") for a in record.get("authors", [])[:6]),
-                year=_year(record.get("year")),
-                doi=doi,
-            )
-        )
+    papers = [parse_semantic_scholar_record(record) for record in json.loads(content).get("data", [])]
     return _keep([p for p in papers if p.url])
 
 
@@ -242,7 +270,7 @@ class SemanticScholarConnector:
     name = "semanticscholar"
 
     async def search(self, client: EgressClient, query: str, limit: int) -> list[Paper]:
-        params = {"query": query, "limit": str(limit), "fields": "title,abstract,year,authors,url,externalIds"}
+        params = {"query": query, "limit": str(limit), "fields": "title,abstract,year,authors,url,externalIds,openAccessPdf"}
         response = await client.get(
             self.name, "https://api.semanticscholar.org/graph/v1/paper/search", params=params, fingerprint_of=query
         )

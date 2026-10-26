@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
-from app.api.deps import auth_limiter, auth_service, client_key, current_user
+from app.api.deps import auth_limiter, auth_service, client_key, current_user, get_settings
 from app.api.ratelimit import RateLimiter
+from app.config import Settings
+from app.schemas import admin as a
 from app.schemas import api as s
 from app.services.auth import AuthService
 
@@ -35,3 +37,14 @@ async def login(
 @router.get("/auth/me", operation_id="getMe", response_model=s.User)
 async def me(user: s.User = Depends(current_user)) -> s.User:
     return user
+
+
+@router.get("/auth/config", operation_id="getAuthConfig", response_model=a.AuthConfig)
+async def auth_config(settings: Settings = Depends(get_settings)) -> a.AuthConfig:
+    """What the login page may offer. Public, and reveals nothing but which buttons to show."""
+    return a.AuthConfig(
+        password_login=not settings.oidc_only,
+        registration=not settings.oidc_only,
+        oidc_enabled=settings.oidc_enabled,
+        oidc_provider_name=settings.oidc_provider_name if settings.oidc_enabled else None,
+    )

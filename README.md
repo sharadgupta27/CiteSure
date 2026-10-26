@@ -1,11 +1,11 @@
 # CiteSure - answers you can verify
 
-**Grounded document Q&A with checked citations and permission-aware retrieval.** Ask a question about your company's documents. Every sentence in the answer carries a citation, every citation was checked against its source before you see it, and people can only ever get answers from documents they are allowed to read.
+**Grounded document Q&A with checked citations and permission-aware retrieval.** Ask a question about your company's documents. Every sentence in the answer carries a citation, every citation was checked against its source before you see it, and people can only ever get answers from documents they are allowed to read. Citations open on the **real PDF page**, a **learning layer** turns documents into verified study plans, and admins get a **tamper-evident audit log** and a dashboard.
 
 ![An answer with numbered citations](substack/images/02-answer-with-citations.png)
 
 > Final project for the DataTalksClub **AI Dev Tools Zoomcamp** (rubric: [docs/course/final-project-rubric.md](docs/course/final-project-rubric.md), agent pack: [docs/course/module5-requirements.md](docs/course/module5-requirements.md)). Built with a coding agent; how is documented in [docs/ai-workflow.md](docs/ai-workflow.md).
-> A step-by-step guide to building it, in plain language, is in [substack/](substack/00-series-index.md).
+> A step-by-step guide to building it, in plain language (16 chapters), is in [substack/](substack/00-series-index.md).
 
 ## 1. The problem
 
@@ -33,6 +33,34 @@ CiteSure fixes both:
 | ------------------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
 | ![](substack/images/07-admin-documents.png) | ![](substack/images/08-workspace-access-control.png) | ![](substack/images/09-quality-compare.png) |
 
+### What else is in the box
+
+CiteSure also absorbed the features of a second project (`document_explorer`); the plan and status are in [docs/merge-roadmap.md](docs/merge-roadmap.md), the story in [chapter 16](substack/16-merging-a-second-project.md).
+
+| Feature | What you get | Docs |
+| --- | --- | --- |
+| **PDF viewer** | A citation opens the real page with the quoted words outlined; your own highlights and notes (private to you); reading progress in the toolbar. PDF.js is bundled, nothing loads from a CDN. | [viewer-and-inbox.md](docs/viewer-and-inbox.md) |
+| **Table-aware PDF parsing** | PyMuPDF reads headings, page numbers and tables (three or more columns), so a citation can point at a table row. | [rag-design.md](docs/rag-design.md) |
+| **Watched folders** | Drop files in `<workspace>/<collection>/`; the folder picks the collection, the collection decides who can read. A folder that matches nothing is quarantined. | [viewer-and-inbox.md](docs/viewer-and-inbox.md) |
+| **Published research** | Search arXiv, Crossref, OpenAlex, Europe PMC and Semantic Scholar; fetch the open-access full text of a paper on demand, within a daily budget and through the egress guard. | [public-research.md](docs/public-research.md), [open-access-fulltext.md](docs/open-access-fulltext.md) |
+| **Learn** | Reading progress, study sets, learning plans, summarize and compare. Every sentence is a verified claim with a citation, like any answer. | [learning-layer.md](docs/learning-layer.md) |
+| **Audit log and dashboard** | A hash-chained log of who did what (ids and counts, never text) with a **Verify chain** button and CSV export; counts, rates and timings for admins. | [audit-dashboard.md](docs/audit-dashboard.md) |
+| **Optional** | Single sign-on (Keycloak, Entra, Google), an encrypted vault for uploads, local OCR for scanned PDFs. All off by default. | [oidc.md](docs/oidc.md), [vault-and-ocr.md](docs/vault-and-ocr.md) |
+
+| Real PDF page, cited words outlined | Study set with progress | Learning plan (every step cited) |
+| --- | --- | --- |
+| ![](substack/images/14-pdf-viewer-citation.png) | ![](substack/images/16-study-set.png) | ![](substack/images/17-learning-plan.png) |
+
+| Watched folders | Admin dashboard | Audit log with a verified chain |
+| --- | --- | --- |
+| ![](substack/images/18-inbox-watched-folders.png) | ![](substack/images/19-admin-dashboard.png) | ![](substack/images/20-audit-log.png) |
+
+| Choose where to look; preview the keywords that would leave |
+| --- |
+| ![](substack/images/12-research-scope-preview.png) |
+
+> **How far this is verified.** The code is covered by tests, and the rebuilt private stack was exercised end to end with a local model (answer, summary, plan, audit chain). **Not run:** a real Keycloak or Entra login, real OCR, and a Docker build with OCR included; the learning prompts have only been tried with fake models and a small local one. Known gaps: [docs/merge-roadmap.md](docs/merge-roadmap.md#known-gaps).
+
 ## 2. Results (measured)
 
 Deterministic fake providers, 40 golden questions, three identical runs. Full table, caveats and known failures: [docs/eval-results.md](docs/eval-results.md).
@@ -48,16 +76,17 @@ Deterministic fake providers, 40 golden questions, three identical runs. Full ta
 ## 3. Architecture and technologies
 
 ```text
-React (Vite) ──REST/SSE──▶ FastAPI ──▶ Postgres 16 + pgvector     ◀── Worker (parse → chunk → embed → index; eval runs)
+React (Vite) ──REST/SSE──▶ FastAPI ──▶ Postgres 16 + pgvector     ◀── Worker (parse → chunk → embed → index; watched folders; eval runs)
  served by nginx            │  ACL → hybrid retrieve → rerank → generate claims → VERIFY → answer | refusal
                             └──▶ LLM provider (Anthropic | fake)   embeddings (fastembed | fake)   blobs (local | S3)
 ```
 
 | Part          | Technology                                           | Role                                                                                                                                     |
 | ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend      | React 18, TypeScript, Vite, Tailwind, TanStack Query | Ask, Documents, Workspace admin, Feedback queue, Quality dashboard, source viewer. One typed API client generated from `openapi.yaml`. |
+| Frontend      | React 18, TypeScript, Vite, Tailwind, TanStack Query, PDF.js | Ask, Documents, Learn, source and PDF viewer; admin: Workspace, Inbox, Dashboard, Audit log, Feedback queue, Quality. One typed API client generated from `openapi.yaml`. |
 | Contract      | OpenAPI 3.1 (`openapi.yaml`) + Spectral            | Source of truth; a drift test fails if the backend disagrees.                                                                            |
 | Backend       | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic  | Layered `api → services → repositories`.                                                                                             |
+| PDF parsing   | PyMuPDF (AGPL-3.0, see §11), optional Tesseract OCR  | Headings, pages and tables with positions; scanned PDFs when OCR is switched on.                                                         |
 | Database      | PostgreSQL 16 + pgvector + full-text search          | One database for documents, vectors, ACLs, jobs, answers and evaluation.                                                                 |
 | Containers    | Docker, Compose                                      | `docker compose up` runs db, migrations, api, worker and frontend.                                                                     |
 | CI/CD         | GitHub Actions                                       | Lint, types, unit, integration, E2E, security scans, image build; RAG-eval gate; deploy to EC2 after green CI.                           |
@@ -81,7 +110,7 @@ Open [http://localhost:5173](http://localhost:5173) and sign in (password for al
 | ------------------------- | --------------------- | ---------------------------------------------------------------------------- |
 | `employee@acme.example` | member                | ask about parental leave; ask about severance (refused)                      |
 | `hr@acme.example`       | member + `hr` group | ask about severance (answered, cited to the confidential document)           |
-| `admin@acme.example`    | workspace admin       | Documents, Workspace, Feedback queue, **Quality** (run the evaluation) |
+| `admin@acme.example`    | workspace admin       | Documents, Workspace, Feedback queue, **Quality** (run the evaluation), **Inbox**, **Dashboard**, **Audit log** |
 
 The default setup uses deterministic **fake providers** (no API key, no downloads, no cost). To use real models:
 
@@ -102,8 +131,8 @@ CiteSure can run so that **company documents never leave your machine** while st
 | | |
 |---|---|
 | Company text | read only by a model you run (`LLM_PROVIDER=local`, e.g. Ollama) with local embeddings; a hosted model for it is refused at boot |
-| Published research | arXiv, Crossref, OpenAlex, Europe PMC (and, with your Claude key, any web page) through an **egress guard** and an **allow-list proxy**; only keywords go out, you can preview and edit them, and every answer says what was sent |
-| Claude | reads public passages and guard-cleared questions only; never company text |
+| Published research | arXiv, Crossref, OpenAlex, Europe PMC, Semantic Scholar (and, with your Claude key, any web page) through an **egress guard** and an **allow-list proxy**; only keywords go out, you can preview and edit them, and every answer says what was sent |
+| Claude | reads public passages and guard-cleared questions only; never company text. Needs `PUBLIC_LLM_PROVIDER=anthropic` and API credit; with `none`, the local model reads public passages too |
 | Proof | a canary planted in a document never appears in any outbound request or hosted prompt (integration tests); `deploy/verify-isolation.sh` proves the running stack has no other route out |
 
 ```bash
@@ -118,10 +147,10 @@ docker compose -f docker-compose.private.yml up -d --build && deploy/verify-isol
 
 | What                                                                                          | Command                                                                                                                                                                                              | Needs    | Count        |
 | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ |
-| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 213          |
-| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 86           |
+| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 430          |
+| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 182           |
 | Lint and types                                                                                | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app`                                                                                                             |          |              |
-| Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 72           |
+| Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 165           |
 | API contract                                                                                  | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py`                                                                                                |          |              |
 | End to end (browser, against Compose)                                                         | `docker compose up -d --build && docker compose run --rm api python -m app.seed && cd e2e && npm ci && npx playwright install chromium && npx playwright test`                                     | Docker   | 9            |
 | Agent pack                                                                                    | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`; `cd mcp-server && uv run pytest`; `cd custom-agent && uv run --no-project --with pytest --with httpx python -m pytest` |          | 60 + 13 + 13 |
@@ -146,6 +175,7 @@ Everything a coding agent needs to work on CiteSure safely: [docs/agent-extensio
 
 Threat model, AI/data policy and real scanner output (gitleaks, Semgrep, Trivy, pip-audit, npm audit) are in [security/](security/). Highlights: ACL enforced inside retrieval SQL; document text treated as untrusted (delimited, never obeyed, no tools for the model); magic-byte upload validation; rate limits; strict CORS and CSP; deleting a document also scrubs its quotes from stored answers; an agent cannot loosen its own guardrails.
 In private mode the leak paths are closed four ways (boot checks, routing, a runtime safety net, a network with no route to the internet) and the residual risks (keywords reveal a topic, the guard needs good deny lists) are stated in [docs/public-research.md](docs/public-research.md#limits-you-should-know).
+Added with the merge: a hash-chained audit log (ids and counts only, never text; keep a copy of the latest hash to also detect removal of the newest entries), optional encryption of uploads at rest, optional single sign-on, and watched folders that quarantine files they cannot place instead of guessing access.
 Known gaps are listed honestly in the threat model (JWT in `localStorage`, in-memory rate limits, no malware scanning, admins read everything).
 
 ## 8. Deployment
@@ -171,9 +201,9 @@ agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substac
 | 1  | Problem description                          | §1, [product-spec.md](product-spec.md)                                                                                               |
 | 2  | AI-assisted workflow                         | [docs/ai-workflow.md](docs/ai-workflow.md), [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                              |
 | 3  | Technologies and architecture                | §3, [docs/architecture.md](docs/architecture.md), [docs/rag-design.md](docs/rag-design.md)                                            |
-| 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 72 Vitest tests, §5                                                                          |
+| 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 165 Vitest tests, §5                                                                          |
 | 5  | API contract                                 | [openapi.yaml](openapi.yaml), generated client, drift test                                                                            |
-| 6  | Backend (structure, contract, tests)         | `backend/app/`, 299 pytest tests                                                                                                   |
+| 6  | Backend (structure, contract, tests)         | `backend/app/`, 612 pytest tests (430 unit + 182 integration)                                                                                                   |
 | 7  | Database (environments, docs)                | PostgreSQL + pgvector, Alembic, [architecture.md § environments](docs/architecture.md#environments-and-the-database-config-rubric-7) |
 | 8  | Containerisation                             | [docker-compose.yml](docker-compose.yml), multi-stage Dockerfiles, §4                                                                |
 | 9  | Integration tests                            | `backend/tests/integration/`, `e2e/`                                                                                             |
@@ -185,4 +215,4 @@ agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substac
 
 ## 11. License
 
-MIT (code). The demo corpus is a fictional handbook written for this project. The optional GitLab Handbook download (`corpus/fetch_gitlab_handbook.py`) is CC BY-SA 4.0 and is never committed.
+MIT (code). **Exception: PyMuPDF**, used to read PDFs, is AGPL-3.0. That is fine for an internal deployment; if you distribute CiteSure or offer it as a service to others, publish your source under a compatible licence or swap the PDF library (it is imported only in `backend/app/rag/parsing/pdf.py` and `backend/app/research/fulltext.py`). The demo corpus is a fictional handbook written for this project. The optional GitLab Handbook download (`corpus/fetch_gitlab_handbook.py`) is CC BY-SA 4.0 and is never committed.

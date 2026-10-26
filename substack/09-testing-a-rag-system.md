@@ -3,7 +3,7 @@
 *Unit, integration, adversarial and end to end, and the real bugs each layer caught.*
 
 **You will learn:** how to test software whose "brain" is an AI model, what to fake and what to keep real, and how to test *security* properties.
-**You will build:** a test pyramid of about 320 tests, including adversarial ones.
+**You will build:** a test pyramid of more than 800 tests (about 320 when this chapter was first written), including adversarial ones.
 **Time:** about 2 hours (reading and running). **Code:** `backend/tests/`, `frontend/src/**/*.test.*`, `e2e/tests/`.
 
 ---
@@ -22,7 +22,7 @@ The fakes (chapter 4 and 6) are not toys. The fake model has *modes* (it can lie
 
 ## Layer 1: unit tests (fast, no Docker)
 
-Run: `cd backend && uv run pytest -m "not integration"`: **94 tests, about 10 seconds.**
+Run: `cd backend && uv run pytest -m "not integration"`: **430 tests** (94 when this chapter was first written).
 
 | Area | Examples of what is proven |
 |---|---|
@@ -34,11 +34,11 @@ Run: `cd backend && uv run pytest -m "not integration"`: **94 tests, about 10 se
 | Prompts | a document cannot close our tags or forge a `<system>` tag |
 | Contract | the server matches `openapi.yaml` (chapter 2) |
 
-And in the frontend: **59 tests** (chapter 8), the **hooks** (chapter 12): **60**, the MCP server: **12**, the nightly agent: **13**.
+And in the frontend: **165 tests** (chapter 8), the **hooks** (chapter 12): **60**, the MCP server: **12**, the nightly agent: **13**.
 
 ## Layer 2: integration tests (real database)
 
-Run: `cd backend && uv run pytest -m integration`: **73 tests, about 60 seconds.** They need Docker, because they use **testcontainers**: the test session starts a *real* PostgreSQL with pgvector in a container, runs the real database migrations against it, and throws it away afterwards. No mocking the database: SQL, indexes and the ACL pre-filter are exactly what we need to test.
+Run: `cd backend && uv run pytest -m integration`: **182 tests, about two minutes.** They need Docker, because they use **testcontainers**: the test session starts a *real* PostgreSQL with pgvector in a container, runs the real database migrations against it, and throws it away afterwards. No mocking the database: SQL, indexes and the ACL pre-filter are exactly what we need to test.
 
 ```python
 @pytest.fixture(scope="session")

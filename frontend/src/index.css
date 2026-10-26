@@ -65,3 +65,58 @@ mark.cite {
     transition: none !important;
   }
 }
+
+/* phase 2: pdf viewer. The text layer rules are the minimum pdf.js needs (adapted from its pdf_viewer.css). */
+.pdf-page {
+  position: relative;
+  margin: 0 auto 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.25);
+}
+.pdf-page canvas {
+  display: block;
+}
+.pdf-page .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+}
+.pdf-page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.pdf-page .textLayer span.markedContent {
+  top: 0;
+  height: 0;
+}
+.pdf-page .textLayer ::selection {
+  background: rgb(79 70 229 / 0.3);
+}
+.pdf-page .hl-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pdf-page .hl-layer > div {
+  position: absolute;
+}
+.pdf-annotation {
+  opacity: 0.45;
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+}
+/* The cited quote: an amber outline, distinct from the filled annotation colours. */
+.pdf-cite-rect {
+  outline: 2px solid #d97706;
+  outline-offset: 1px;
+  border-radius: 2px;
+  background: rgb(245 158 11 / 0.12);
+}

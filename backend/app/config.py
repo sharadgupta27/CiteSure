@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EMBEDDING_DIM = 384  # fixed per migration; changing it needs a new migration + reindex
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     public_research_enabled: bool = False
     default_scope: Literal["internal", "public", "both"] = "internal"
     public_llm_provider: Literal["none", "fake", "anthropic"] = "none"  # may read PUBLIC text only
-    public_sources: str = "arxiv,crossref,openalex,europepmc"  # + semanticscholar, web
+    public_sources: str = "arxiv,crossref,openalex,europepmc,semanticscholar"  # + web
     public_results_per_source: int = Field(5, ge=1, le=20)
     public_top_k: int = Field(6, ge=1, le=20)
     public_timeout_s: float = Field(15.0, gt=0)
@@ -78,9 +78,81 @@ class Settings(BaseSettings):
     web_search_model: str = ""  # defaults to ANSWER_MODEL; used only for URL discovery with the Anthropic web search tool
     web_search_max_uses: int = Field(3, ge=1, le=10)
     web_fetch_pages: int = Field(4, ge=1, le=10)
+
+    # --- phase 2 settings (viewer + inbox): owned by the phase 2 agent; add fields under this line ---
+    # Watched folder: <INBOX_ROOT>/<workspace folder>/<collection name>/<file>. Empty = the feature is off.
+    inbox_root: str = ""
+    inbox_poll_seconds: int = Field(30, ge=2, le=3600)
+    inbox_settle_seconds: int = Field(5, ge=0, le=600)  # a file must be this old (mtime) so a half-copied file is never read
+    inbox_max_file_mb: int = Field(20, ge=1, le=500)
+    inbox_allowed_types: str = "pdf,docx,markdown"  # detected kinds (by magic bytes): pdf, docx, markdown, html
+
+    # --- phase 3 settings (open-access full text): owned by the phase 3 agent; add fields under this line ---
+    # On demand, a user can add the open-access PDF of a published paper to the public cache (docs/open-access-fulltext.md).
+    fulltext_enabled: bool | None = None  # None follows PUBLIC_RESEARCH_ENABLED; False switches only this feature off
+    fulltext_daily_fetches: int = Field(
+        20, ge=0, le=1000
+    )  # downloads per workspace per UTC day; 0 refuses every new download
+    fulltext_max_bytes: int = Field(25_000_000, ge=100_000)  # one paper's PDF; a larger download is cut off and refused
+    fulltext_max_pages: int = Field(150, ge=1, le=2000)  # a longer PDF is refused before it is parsed (parse-time bomb)
+    fulltext_max_chunks: int = Field(800, ge=10, le=5000)  # bounds embedding work for one paper
+    fulltext_cache_ttl_days: int = Field(30, ge=1, le=3650)  # after this a cached paper is ignored and fetched afresh
+    fulltext_timeout_s: float = Field(60.0, gt=0)  # whole download, redirects included
+    fulltext_parse_timeout_s: float = Field(60.0, gt=0)
+
+    @field_validator("fulltext_enabled", mode="before")
+    @classmethod
+    def _blank_fulltext_flag_follows_the_public_lane(cls, value: object) -> object:
+        """`FULLTEXT_ENABLED=` in a compose file or .env arrives as an empty string, which means 'not set'."""
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @property
+    def fulltext_on(self) -> bool:
+        """Full text needs the public lane (it is fetched through the same egress guard and client)."""
+        return self.public_research_enabled and self.fulltext_enabled is not False
+
+    # --- phase 4 settings (learning layer): owned by the phase 4 agent; add fields under this line ---
+    learning_reading_wpm: int = Field(200, ge=50, le=1000)  # reading speed behind the effort estimates
+    learning_unit_minutes: int = Field(30, ge=5, le=240)  # a plan step aims at about this much reading
+    learning_max_plan_documents: int = Field(12, ge=1, le=50)
+    learning_max_plan_steps: int = Field(12, ge=1, le=40)  # one grounded generation per step, so this bounds the cost
+    learning_summary_chunks: int = Field(12, ge=2, le=40)  # sections of one document the summary model reads
+    learning_compare_chunks_per_doc: int = Field(3, ge=1, le=10)
+    learning_generation_concurrency: int = Field(3, ge=1, le=10)  # parallel model calls while building a plan
+
+    # --- phase 5 settings (audit, OIDC, vault, OCR): owned by the phase 5 agent; add fields under this line ---
+    # Optional OIDC sign-in (Keycloak, Entra ID, Google...). Off by default; docs/oidc.md. The identity provider is
+    # contacted directly (discovery, JWKS, token endpoint) and is NOT part of the public-research egress allow-list.
+    oidc_enabled: bool = False
+    oidc_issuer: str = (
+        ""  # e.g. https://keycloak.example/realms/acme ; discovery is read from <issuer>/.well-known/openid-configuration
+    )
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""  # empty = public client (PKCE only)
+    oidc_redirect_uri: str = ""  # the API's callback, e.g. https://citesure.example/api/v1/auth/oidc/callback
+    oidc_scopes: str = "openid email profile"
+    oidc_groups_claim: str = "groups"  # id-token claim listing group names; only groups that already exist are mapped
+    oidc_provider_name: str = "Single sign-on"  # label of the login button
+    oidc_auto_create_users: bool = False  # create a local account on first login (otherwise it must already exist)
+    oidc_require_email_verified: bool = True  # refuse ids whose provider does not vouch for the address
+    oidc_only: bool = False  # true = password login and registration are switched off
+    oidc_post_login_url: str = ""  # where the browser lands after login; default is the first CORS origin
+    oidc_timeout_s: float = Field(10.0, gt=0)
+    # Encrypted vault: AES-GCM envelope encryption of uploaded files at rest (docs/vault-and-ocr.md).
+    vault_enabled: bool = False
+    vault_key: str = ""  # base64 (or 64 hex chars) of 32 random bytes; prefer VAULT_KEY_FILE
+    vault_key_file: str = ""  # path of a file holding the active key (Docker/Kubernetes secret)
+    vault_key_id: str = "k1"  # stored with every object, so keys can be rotated
+    vault_retired_keys_file: str = ""  # JSON {"key id": "base64 key"} of old keys that can still decrypt
+    # Local OCR for scanned PDFs (PyMuPDF + Tesseract; nothing leaves the machine).
+    ocr_enabled: bool = False
+    ocr_languages: str = "eng"  # Tesseract language codes, e.g. "eng+deu"
+    ocr_dpi: int = Field(300, ge=72, le=600)
+    ocr_max_pages: int = Field(200, ge=1, le=2000)
     egress_mode: Literal["allowlist", "open"] = "allowlist"  # open = any public https host (needs web source)
     egress_allow_hosts: str = (
-        "export.arxiv.org,api.crossref.org,api.openalex.org,www.ebi.ac.uk,api.semanticscholar.org,api.anthropic.com"
+        "export.arxiv.org,api.crossref.org,api.openalex.org,www.ebi.ac.uk,api.semanticscholar.org,api.anthropic.com,"
+        "arxiv.org,europepmc.org"  # the last two serve open-access PDFs (phase 3 full text)
     )
     egress_proxy_url: str = ""  # e.g. http://egress-proxy:3128 ; required in prod private mode
     egress_deny_terms: str = ""  # comma separated project names, customers, code names that must never leave
@@ -166,9 +238,35 @@ class Settings(BaseSettings):
             raise RuntimeError("CORS_ORIGINS must list explicit origins in prod")
         self.assert_private_mode_consistent()
 
+    def assert_oidc_vault_consistent(self) -> None:
+        """Phase 5 switches: refuse half-configured sign-in or an encryption vault that cannot find its key."""
+        if self.oidc_only and not self.oidc_enabled:
+            raise RuntimeError("OIDC_ONLY needs OIDC_ENABLED=true (otherwise nobody could sign in)")
+        if self.oidc_enabled:
+            missing = [
+                name
+                for name, value in (
+                    ("OIDC_ISSUER", self.oidc_issuer),
+                    ("OIDC_CLIENT_ID", self.oidc_client_id),
+                    ("OIDC_REDIRECT_URI", self.oidc_redirect_uri),
+                )
+                if not value
+            ]
+            if missing:
+                raise RuntimeError(f"OIDC_ENABLED needs {', '.join(missing)}")
+            if not self.oidc_issuer.startswith("https://") and not is_private_url(self.oidc_issuer):
+                raise RuntimeError("OIDC_ISSUER must be an https:// URL (plain http is only allowed on a private network)")
+            if self.private_mode and not is_private_url(self.oidc_issuer):
+                # Discovery, JWKS and token requests go straight to the provider, outside the egress allow-list,
+                # so in private mode the provider has to live on this machine or the private network.
+                raise RuntimeError("PRIVATE_MODE: OIDC_ISSUER must point at a provider on this machine or a private network")
+        if self.vault_enabled and not (self.vault_key or self.vault_key_file):
+            raise RuntimeError("VAULT_ENABLED needs VAULT_KEY or VAULT_KEY_FILE (the vault fails closed without a key)")
+
     def assert_private_mode_consistent(self) -> None:
         """The promise of private mode, checked at boot so a bad .env cannot silently break it:
         every component that reads company text runs on this machine or a private network."""
+        self.assert_oidc_vault_consistent()
         if self.public_llm_provider != "none" and not self.public_research_enabled:
             raise RuntimeError("PUBLIC_LLM_PROVIDER needs PUBLIC_RESEARCH_ENABLED=true")
         if self.default_scope != "internal" and not self.public_research_enabled:

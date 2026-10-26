@@ -30,6 +30,8 @@ from app.rag.text import content_terms, sentence_spans
 Mode = Literal["extractive", "hallucinate", "mismatch", "obedient"]
 
 ANSWER_MIN_COVERAGE = float(os.environ.get("FAKE_MIN_COVERAGE", "0.40"))  # precision/recall knob, see docs/eval-results.md
+SUMMARY_MIN_CHARS = 20  # shorter "sentences" are headings and labels, not points worth summarizing
+SUMMARY_MAX_CLAIMS = 6
 NUMBER_QUESTION = re.compile(
     r"(how (many|much|long|often|fast|quickly|heavy)|when|what is the [a-z ]*(limit|stipend|budget|range|target|amount))",
     re.IGNORECASE,
@@ -63,6 +65,10 @@ class FakeProvider:
             injected = self._obey_injection(request.sources)
             if injected is not None:
                 return injected, Usage()
+        if request.task == "summary":
+            return self._summary(request), Usage()
+        if request.task == "compare":
+            return self._compare(request), Usage()
         sentences = _sentences(request.sources)
         question_terms = set(content_terms(request.question))
         if not sentences or not question_terms:
@@ -105,6 +111,41 @@ class FakeProvider:
             block, sentence, _ = sentences[index]
             claims.append(self._claim(block, sentence))
         return AnswerDraft(claims=claims, refusal=None), Usage()
+
+    def _summary(self, request: GenerationRequest) -> AnswerDraft:
+        """One quoted sentence per passage, in reading order: the first one, or the one that best matches the focus."""
+        focus = set(content_terms(request.question))
+        claims: list[DraftClaim] = []
+        for block in request.sources:
+            options = [(s, t) for _, s, t in _sentences([block]) if len(s.strip()) >= SUMMARY_MIN_CHARS]
+            if focus:
+                options = [(s, t) for s, t in options if t & focus]
+                options.sort(key=lambda option: -len(option[1] & focus))  # stable: ties keep reading order
+            if options:
+                claims.append(self._claim(block, options[0][0]))
+            if len(claims) >= SUMMARY_MAX_CLAIMS:
+                break
+        if not claims:
+            return AnswerDraft(claims=[], refusal="The passages do not cover this.")
+        return AnswerDraft(claims=claims, refusal=None)
+
+    def _compare(self, request: GenerationRequest) -> AnswerDraft:
+        """For each document, its best sentence on the aspect, if it covers enough of the aspect's words."""
+        aspect = set(content_terms(request.question))
+        claims: list[DraftClaim] = []
+        titles = list(dict.fromkeys(b.document_title for b in request.sources))
+        for title in titles:
+            blocks = [b for b in request.sources if b.document_title == title]
+            best: tuple[float, SourceBlock, str] | None = None
+            for block, sentence, terms in _sentences(blocks):
+                covered = len(terms & aspect) / len(aspect) if aspect else 0.0
+                if covered >= ANSWER_MIN_COVERAGE and (best is None or covered > best[0]):
+                    best = (covered, block, sentence)
+            if best is not None:
+                claims.append(self._claim(best[1], best[2]))
+        if not claims:
+            return AnswerDraft(claims=[], refusal="None of the documents covers this aspect.")
+        return AnswerDraft(claims=claims, refusal=None)
 
     def _claim(self, block: SourceBlock, sentence: str) -> DraftClaim:
         if self.mode == "hallucinate":

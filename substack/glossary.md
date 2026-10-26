@@ -58,6 +58,8 @@ Every technical word used in the series, in one or two plain sentences. Alphabet
 
 **Hallucination.** When a model states something that its sources do not support.
 
+**Hash chain.** Each audit-log entry includes a fingerprint (hash) of the previous entry, so changing or removing an entry in the middle breaks every fingerprint after it. Removing only the newest entries is not detected unless you keep a copy of the latest hash elsewhere.
+
 **Hook.** A small script a coding tool runs automatically at a set moment (before an action, after an edit, when the agent says "done"). It can block the action.
 
 **HNSW.** A kind of index that finds the nearest vectors quickly without comparing against all of them.
@@ -76,6 +78,10 @@ Every technical word used in the series, in one or two plain sentences. Alphabet
 
 **Observability.** Being able to tell what a running system is doing from the outside: metrics, logs and traces.
 
+**OCR (optical character recognition).** Reading the text out of a picture of a page, so a scanned PDF becomes searchable. Optional in CiteSure, done locally with Tesseract.
+
+**OIDC (OpenID Connect).** A standard way to sign in with an account from another provider (Keycloak, Microsoft Entra, Google) instead of a password stored by the app.
+
 **OpenAPI.** A standard file format for describing an API.
 
 **pgvector.** A Postgres extension that stores embeddings and searches them by similarity.
@@ -85,6 +91,8 @@ Every technical word used in the series, in one or two plain sentences. Alphabet
 **Plugin.** A bundle of skills, subagents, hooks and tool settings that can be installed into another project.
 
 **Pre-filter.** Applying a rule (here, permissions) inside the search itself, rather than removing results afterwards.
+
+**Quarantine.** A holding place for a file the system will not import yet, for example one dropped in a watched folder that matches no collection. It is never imported with broader access.
 
 **RAG (retrieval-augmented generation).** First *find* relevant passages from your documents, then ask a model to answer *using only those passages*.
 
@@ -102,6 +110,8 @@ Every technical word used in the series, in one or two plain sentences. Alphabet
 
 **SSE (Server-Sent Events).** A way for the server to push messages to the browser one by one over a single connection. Used for the "Searching... Writing... Checking..." progress.
 
+**Study set.** A personal reading list of documents (and saved papers) with reading progress tracked across them.
+
 **Subagent.** A helper agent with a clean context and a limited tool list, which the main agent can delegate a job to.
 
 **Testcontainers.** A test library that starts a real database in a container for the test session and throws it away afterwards.
@@ -109,6 +119,8 @@ Every technical word used in the series, in one or two plain sentences. Alphabet
 **Threat model.** A table of what you protect, who could attack it, what stops them, how you know, and what risk remains.
 
 **Token.** A piece of text (roughly three-quarters of a word) that models read and bill by. Also: a login token (see JWT).
+
+**Vault.** Encryption of uploaded files at rest with a key you provide, so a copy of the disk is unreadable without it.
 
 **Vector search.** Finding the passages whose embeddings are closest to the question's embedding: search by meaning.
 
