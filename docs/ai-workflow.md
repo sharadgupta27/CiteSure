@@ -129,6 +129,12 @@ Each entry: goal → prompt/delegation → what the AI produced → what the hum
 - **Not done:** no real model was called (no key, no downloaded local model): the Claude public lane, the web source and the local model are covered by fakes and mock servers, so answer quality with Ollama and Claude is unmeasured. The Tailscale and Cloudflare containers were not started (they need accounts). No Playwright test of the public lane (needs live internet). Nothing was committed.
 
 
+### 2026-10-26 - Fix Docker image CI scan
+
+- **Goal:** fix the Docker images build job failing on a Trivy secret-scanner false positive in the installed Anthropic SDK documentation.
+- **AI produced:** limited the Trivy image scan to vulnerability findings; the separate Gitleaks and filesystem secret scans remain unchanged.
+- **Verification:** confirmed the Actions log reports masked placeholder strings from the SDK as a CRITICAL GCP service-account finding; validated the CI workflow and action pins locally.
+
 ### 2026-10-25 - Phase 5: audit log, dashboard, optional OIDC, vault and OCR
 
 - **Goal (from the owner):** port the hardening features of document_explorer into CiteSure without making any of them a hard dependency: a tamper-evident audit log, an admin dashboard, optional OIDC sign-in, an encrypted file vault and local OCR.
