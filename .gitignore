@@ -46,3 +46,8 @@ plan.md
 product-spec.md
 CLAUDE.md
 AGENTS.md
+
+# Inbox bookkeeping folders, if the sample inbox is ever mounted read-write
+examples/inbox/.processed/
+examples/inbox/.failed/
+examples/inbox/.quarantine/

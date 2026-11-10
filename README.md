@@ -88,7 +88,7 @@ React (Vite) ──REST/SSE──▶ FastAPI ──▶ Postgres 16 + pgvector   
 | Backend       | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic  | Layered `api → services → repositories`.                                                                                             |
 | PDF parsing   | PyMuPDF (AGPL-3.0, see §11), optional Tesseract OCR  | Headings, pages and tables with positions; scanned PDFs when OCR is switched on.                                                         |
 | Database      | PostgreSQL 16 + pgvector + full-text search          | One database for documents, vectors, ACLs, jobs, answers and evaluation.                                                                 |
-| Containers    | Docker, Compose                                      | `docker compose up` runs db, migrations, api, worker and frontend.                                                                     |
+| Containers    | Docker, Compose                                      | `docker compose up` runs db, migrations, api, worker and frontend; the private stack adds Ollama, a Squid egress proxy and Caddy (all compose files: §4). |
 | CI/CD         | GitHub Actions                                       | Lint, types, unit, integration, E2E, security scans, image build; RAG-eval gate; deploy to EC2 after green CI.                           |
 | Observability | OpenTelemetry, Prometheus, Grafana, Loki, Tempo      | Per-stage latency, refusal/verification rates, cost, alerts.                                                                             |
 
@@ -126,6 +126,32 @@ WITH_ML=true EMBEDDING_PROVIDER=fastembed RERANKER=cross-encoder docker compose 
 
 Variables are documented in [.env.example](.env.example). Stop everything: `docker compose down` (add `-v` to delete the data).
 
+### Sample internal company
+
+[examples/](examples/README.md) holds the internal documents of an invented company, **Fernhollow Bicycle Works**: a handbook for everyone, engineering files for one group and finance files for another (Markdown, DOCX and PDF). The folder is laid out for the watched-folder inbox, so it imports without any uploading by hand. Set `INBOX_ROOT=/data/inbox`, `INBOX_HOST_DIR=./examples/inbox` and `INBOX_MOUNT_MODE=ro`, then run `docker compose run --rm api python -m app.seed_example` before `docker compose up -d`. Logins, setup steps and questions to try are in [examples/README.md](examples/README.md).
+
+### Docker files at a glance
+
+| File | What it runs | Start | Published ports |
+|---|---|---|---|
+| [docker-compose.yml](docker-compose.yml) | development stack, Docker project `citesure-dev`: db (pgvector), migrate, api, worker, frontend | `docker compose up -d --build` | 5173 (app), 8000 (API), 5432 (Postgres) |
+| [docker-compose.private.yml](docker-compose.private.yml) | private stack, project `citesure`: db, migrate, ollama, egress-proxy, api, worker, frontend, caddy; `ollama-pull` (profile `setup`, one-off model download) | `docker compose -f docker-compose.private.yml up -d --build` | `BIND_ADDRESS:HTTP_PORT` (default 127.0.0.1:8080) and `HTTPS_PORT` (8443), Caddy only |
+| [docker-compose.gpu.yml](docker-compose.gpu.yml) | overlay for the private stack: gives `ollama` an NVIDIA GPU | add `-f docker-compose.gpu.yml` | none |
+| [docker-compose.prod.yml](docker-compose.prod.yml) | one-VM production stack from GHCR images: db, migrate, api, worker, frontend, caddy | `docker compose -f docker-compose.prod.yml up -d` (§8) | 80, 443 |
+| [ops/docker-compose.observability.yml](ops/docker-compose.observability.yml) | overlay for the development stack: Prometheus, Grafana, Tempo, OpenTelemetry Collector, Loki, Promtail | add `-f ops/docker-compose.observability.yml` | 3000 (Grafana), 9090 (Prometheus) |
+| [ops/docker-compose.observability.private.yml](ops/docker-compose.observability.private.yml) | overlay for the private stack: the same tools minus Promtail, on the no-internet network only | add `-f ops/docker-compose.observability.private.yml` | none (Grafana via Caddy at `/grafana/`) |
+| [backend/Dockerfile](backend/Dockerfile) | one image for api, worker, migrations and seed scripts (Python 3.12, non-root user) | built by the compose files | 8000 (inside the network) |
+| [frontend/Dockerfile](frontend/Dockerfile) | React build (Node 22) served by unprivileged nginx, which proxies `/api` | built by the compose files | 8080 (inside the network) |
+| [deploy/egress/Dockerfile](deploy/egress/Dockerfile) | the Squid allow-list proxy, the private stack's only way out | built by `docker-compose.private.yml` | 3128 (inside the network) |
+
+Build arguments of `backend/Dockerfile`:
+
+| Argument | Effect | Development stack | Private stack | Production images (CI) |
+|---|---|---|---|---|
+| `WITH_ML` | fastembed embeddings and cross-encoder reranker, models baked into the image | `false` (set `WITH_ML=true` to build them in) | `true` | `true` |
+| `WITH_OCR`, `OCR_LANGS` | Tesseract for scanned PDFs (needs `OCR_ENABLED=true` at runtime) | not passed (no OCR build) | `false`, `eng` (set `WITH_OCR=true`) | not set |
+| `WITH_S3` | boto3, for `STORAGE_BACKEND=s3` | not passed | not passed | `true` |
+
 ## 4b. Private mode and public research (new)
 
 CiteSure can run so that **company documents never leave your machine** while still answering from **published papers and web pages**.
@@ -142,6 +168,8 @@ cp .env.private.example .env       # secrets, EGRESS_DENY_TERMS, optionally ANTH
 docker compose -f docker-compose.private.yml --profile setup run --rm ollama-pull
 docker compose -f docker-compose.private.yml up -d --build && deploy/verify-isolation.sh
 ```
+
+With an NVIDIA GPU, add `-f docker-compose.gpu.yml` to the `up` command (needs the NVIDIA Container Toolkit, or Docker Desktop with the WSL2 GPU backend). On a CPU-only machine, raise `LOCAL_LLM_TIMEOUT_S` if answers fail with "The local model failed".
 
 Keeping the private settings in a separate file (for example `.env.private`) instead? Compose reads only `.env` by itself, so add `--env-file .env.private` to every `docker compose -f docker-compose.private.yml ...` command above.
 
@@ -197,8 +225,8 @@ The MCP server ([mcp-server/](mcp-server/)) is not a web app. It runs as a stdio
 
 | What                                                                                          | Command                                                                                                                                                                                              | Needs    | Count        |
 | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ |
-| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 430          |
-| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 182           |
+| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 458          |
+| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 185           |
 | Lint and types                                                                                | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app`                                                                                                             |          |              |
 | Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 165           |
 | API contract                                                                                  | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py`                                                                                                |          |              |
@@ -239,8 +267,9 @@ Free and private options (your own machine, Tailscale Funnel or Cloudflare Tunne
 ## 9. Repository map
 
 ```text
-README.md  product-spec.md  AGENTS.md  CLAUDE.md  plan.md  openapi.yaml  docker-compose.yml  docker-compose.prod.yml
-frontend/  backend/  e2e/  corpus/  docs/  security/  ops/  deploy/  .github/workflows/
+README.md  product-spec.md  AGENTS.md  CLAUDE.md  plan.md  openapi.yaml
+docker-compose.yml  docker-compose.private.yml  docker-compose.gpu.yml  docker-compose.prod.yml
+frontend/  backend/  e2e/  corpus/  examples/  docs/  security/  ops/  deploy/  .github/workflows/
 agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substack/
 ```
 
@@ -253,7 +282,7 @@ agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substac
 | 3  | Technologies and architecture                | §3, [docs/architecture.md](docs/architecture.md), [docs/rag-design.md](docs/rag-design.md)                                            |
 | 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 165 Vitest tests, §5                                                                          |
 | 5  | API contract                                 | [openapi.yaml](openapi.yaml), generated client, drift test                                                                            |
-| 6  | Backend (structure, contract, tests)         | `backend/app/`, 612 pytest tests (430 unit + 182 integration)                                                                                                   |
+| 6  | Backend (structure, contract, tests)         | `backend/app/`, 643 pytest tests (458 unit + 185 integration)                                                                                                   |
 | 7  | Database (environments, docs)                | PostgreSQL + pgvector, Alembic, [architecture.md § environments](docs/architecture.md#environments-and-the-database-config-rubric-7) |
 | 8  | Containerisation                             | [docker-compose.yml](docker-compose.yml), multi-stage Dockerfiles, §4                                                                |
 | 9  | Integration tests                            | `backend/tests/integration/`, `e2e/`                                                                                             |

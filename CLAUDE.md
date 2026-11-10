@@ -62,13 +62,14 @@ backend/tests/{unit,integration}/   backend/tests/fixtures/ (sample PDFs/DOCX/MD
 backend/evals/             golden sets (JSONL), experiments.yaml
 e2e/                       Playwright
 corpus/                    fetch script + license notes (raw docs are git-ignored)
+examples/                  fictional sample company laid out for the inbox; app/seed_example.py creates its workspace
 ops/  security/  docs/
 agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/
 ```
 
 ## Commands
 
-> Verified against the running project. Extra commands: `python agent-hooks/install.py --check` (agent-pack copies in sync), `python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest`, `python corpus/validate_golden.py`, `bash security/run-scans.sh`. Counts (2026-11-10): 430 unit + 184 integration backend tests, 165 frontend, 9 E2E happy-path (plus screenshot specs), 60 agent-hooks, 13 MCP server, 13 custom agent.
+> Verified against the running project. Extra commands: `python agent-hooks/install.py --check` (agent-pack copies in sync), `python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest`, `python corpus/validate_golden.py`, `bash security/run-scans.sh`. Counts (2026-11-10): 458 unit + 186 integration backend tests, 165 frontend, 9 E2E happy-path (plus screenshot specs), 60 agent-hooks, 13 MCP server, 13 custom agent.
 
 ```bash
 # Full stack

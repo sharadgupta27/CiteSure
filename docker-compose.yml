@@ -12,6 +12,8 @@ name: citesure-dev
 
 x-backend-env: &backend-env
   ENV: dev
+  # Watched-folder inbox (docs/viewer-and-inbox.md): off unless INBOX_ROOT=/data/inbox. The worker mounts INBOX_HOST_DIR there.
+  INBOX_ROOT: ${INBOX_ROOT:-}
   DATABASE_URL: postgresql+asyncpg://citesure:citesure@db:5432/citesure
   JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-0000}
   CORS_ORIGINS: http://localhost:5173
@@ -72,7 +74,10 @@ services:
     image: citesure-backend
     command: ["python", "-m", "app.worker"]
     environment: *backend-env
-    volumes: [uploads:/data/uploads]
+    volumes:
+      - uploads:/data/uploads
+      # INBOX_MOUNT_MODE=ro imports files without moving them (the tracked samples in examples/inbox)
+      - "${INBOX_HOST_DIR:-./inbox}:/data/inbox:${INBOX_MOUNT_MODE:-rw}"
     healthcheck:
       # The worker serves no HTTP API; its Prometheus endpoint proves the process is alive (the image default probes :8000).
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9100/metrics', timeout=2).status == 200 else 1)"]
