@@ -53,16 +53,23 @@ def parse_json_object(text: str) -> dict[str, Any]:
     return data
 
 
-class LocalProvider:
-    hosted = False
+class ModelDeclined(Exception):
+    """The model refused instead of answering (OpenAI's `message.refusal`). Not retried: asking again won't help."""
 
-    def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None) -> None:
-        self.answer_model = settings.local_answer_model
-        self.verify_model = settings.local_verify_model
-        self._url = settings.local_llm_base_url.rstrip("/") + "/chat/completions"
-        self._answer_tokens = settings.max_answer_tokens
-        self._verify_tokens = settings.max_verify_tokens
-        self._client = httpx.AsyncClient(timeout=settings.local_llm_timeout_s, trust_env=False, transport=transport)
+
+class ChatCompletionsProvider:
+    """Shared client for the OpenAI-style `/chat/completions` protocol. Subclasses decide where it points, whether
+    it is hosted, and how it authenticates; nothing here chooses which lane may use it (services/pipeline.py does)."""
+
+    hosted: bool
+    answer_model: str
+    verify_model: str
+    _label = "model"  # used in log lines and errors, which never contain document text
+    _length_limit_param = "max_tokens"
+    _url: str
+    _answer_tokens: int
+    _verify_tokens: int
+    _client: httpx.AsyncClient
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -75,7 +82,7 @@ class LocalProvider:
             "model": model,
             "messages": [{"role": "system", "content": system_with_schema}, {"role": "user", "content": user}],
             "temperature": 0,
-            "max_tokens": max_tokens,
+            self._length_limit_param: max_tokens,
             "stream": False,
             "response_format": {"type": "json_schema", "json_schema": {"name": name, "schema": schema, "strict": True}},
         }
@@ -93,39 +100,48 @@ class LocalProvider:
                     int(payload.get("usage", {}).get("prompt_tokens", 0)),
                     int(payload.get("usage", {}).get("completion_tokens", 0)),
                 )
-                return parse_json_object(payload["choices"][0]["message"]["content"] or ""), usage
+                message = payload["choices"][0]["message"]
+                if message.get("refusal") and not message.get("content"):
+                    raise ModelDeclined
+                return parse_json_object(message["content"] or ""), usage
             except httpx.HTTPError as exc:
                 last_error = f"server error: {type(exc).__name__}"
             except (KeyError, IndexError, ValueError) as exc:
                 last_error = f"unusable reply: {type(exc).__name__}"
-            log.warning("local model attempt %d failed (%s)", attempt + 1, last_error)
-        raise LocalModelError(f"The local model failed: {last_error}")
+            log.warning("%s attempt %d failed (%s)", self._label, attempt + 1, last_error)
+        raise LocalModelError(f"The {self._label} failed: {last_error}")
 
     async def generate_answer(self, request: GenerationRequest) -> tuple[AnswerDraft, Usage]:
-        data, usage = await self._complete(
-            model=self.answer_model,
-            system=request.system,
-            user=request.user,
-            schema=ANSWER_JSON_SCHEMA,
-            name="answer",
-            max_tokens=self._answer_tokens,
-        )
+        try:
+            data, usage = await self._complete(
+                model=self.answer_model,
+                system=request.system,
+                user=request.user,
+                schema=ANSWER_JSON_SCHEMA,
+                name="answer",
+                max_tokens=self._answer_tokens,
+            )
+        except ModelDeclined:
+            return AnswerDraft(claims=[], refusal="The model declined to answer."), Usage()
         try:
             return AnswerDraft.model_validate(data), usage
         except ValidationError as exc:
-            raise LocalModelError("The local model returned an answer in the wrong shape") from exc
+            raise LocalModelError(f"The {self._label} returned an answer in the wrong shape") from exc
 
     async def judge_entailment(
         self, *, system: str, user: str, claim: str, evidence: str
     ) -> tuple[EntailmentVerdict, Usage]:
-        data, usage = await self._complete(
-            model=self.verify_model,
-            system=system,
-            user=user,
-            schema=ENTAILMENT_JSON_SCHEMA,
-            name="entailment",
-            max_tokens=self._verify_tokens,
-        )
+        try:
+            data, usage = await self._complete(
+                model=self.verify_model,
+                system=system,
+                user=user,
+                schema=ENTAILMENT_JSON_SCHEMA,
+                name="entailment",
+                max_tokens=self._verify_tokens,
+            )
+        except ModelDeclined:
+            return EntailmentVerdict(verdict="unsupported", reason="The verifier declined."), Usage()
         try:
             return EntailmentVerdict.model_validate(data), usage
         except ValidationError:
@@ -136,16 +152,32 @@ class LocalProvider:
         self, *, system: str, question: str, expected: str, actual: str
     ) -> tuple[CorrectnessVerdict, Usage]:
         user = f"<question>\n{question}\n</question>\n<reference>\n{expected}\n</reference>\n<answer>\n{actual}\n</answer>"
-        data, usage = await self._complete(
-            model=self.verify_model,
-            system=system,
-            user=user,
-            schema=CORRECTNESS_JSON_SCHEMA,
-            name="correctness",
-            max_tokens=self._verify_tokens,
-        )
+        try:
+            data, usage = await self._complete(
+                model=self.verify_model,
+                system=system,
+                user=user,
+                schema=CORRECTNESS_JSON_SCHEMA,
+                name="correctness",
+                max_tokens=self._verify_tokens,
+            )
+        except ModelDeclined:
+            return CorrectnessVerdict(score=0.0, reason="The judge declined."), Usage()
         try:
             verdict = CorrectnessVerdict.model_validate(data)
         except ValidationError:
             return CorrectnessVerdict(score=0.0, reason="The judge returned an unreadable verdict."), usage
         return verdict, usage
+
+
+class LocalProvider(ChatCompletionsProvider):
+    hosted = False
+    _label = "local model"
+
+    def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self.answer_model = settings.local_answer_model
+        self.verify_model = settings.local_verify_model
+        self._url = settings.local_llm_base_url.rstrip("/") + "/chat/completions"
+        self._answer_tokens = settings.max_answer_tokens
+        self._verify_tokens = settings.max_verify_tokens
+        self._client = httpx.AsyncClient(timeout=settings.local_llm_timeout_s, trust_env=False, transport=transport)

@@ -41,8 +41,16 @@ async def ask(client: httpx.AsyncClient, workspace_id: str, headers: dict[str, s
     return response.json()
 
 
-def dump(answer: dict[str, Any]) -> str:
-    return str(answer).lower()
+def dump(answer: Any) -> str:
+    """Every piece of text in the response, lowercased.
+
+    Numbers, ids and timestamps are skipped: a timing such as 0.0000229254365 or a UUID can contain "365" by
+    chance, which made the injection check flaky without saying anything about leaked content."""
+    if isinstance(answer, dict):
+        return " ".join(dump(v) for k, v in answer.items() if k not in {"id", "created_at"} and not str(k).endswith("_id"))
+    if isinstance(answer, list):
+        return " ".join(dump(v) for v in answer)
+    return answer.lower() if isinstance(answer, str) else ""
 
 
 async def test_poisoned_document_does_not_change_answers_about_other_topics(client: httpx.AsyncClient, app: Any) -> None:

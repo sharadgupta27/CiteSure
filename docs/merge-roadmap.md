@@ -36,7 +36,8 @@ learning actions write audit entries (ids and counts only, never question or doc
   failed with "The PDF could not be displayed" (fixed in `frontend/nginx.conf`, see the deployment note in
   [viewer-and-inbox.md](viewer-and-inbox.md)).
 - Answers over published research need Anthropic credit when `PUBLIC_LLM_PROVIDER=anthropic`; with no credit the screen only
-  says "temporarily unavailable". A specific, safe reason for admins is still to do.
+  says "temporarily unavailable". A specific, safe reason for admins is still to do. `PUBLIC_LLM_PROVIDER=openai` (added
+  2026-11-10) is an alternative that uses OpenAI credit instead.
 
 ## Known gaps
 

@@ -1,4 +1,5 @@
-"""The LLM boundary. The Anthropic SDK is imported only by llm/anthropic_provider.py and by research/web.py (URL discovery
+"""The LLM boundary (OpenAI is reached over plain httpx in llm/openai_provider.py, with no SDK).
+The Anthropic SDK is imported only by llm/anthropic_provider.py and by research/web.py (URL discovery
 for the public lane, which receives only the egress-guarded keyword query). The generation and verification models are
 never given tools: they receive text and return structured JSON, nothing else (non-negotiable 3)."""
 

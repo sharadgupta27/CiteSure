@@ -44,10 +44,14 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
 
     # Providers. `llm_provider` is the INTERNAL lane: it is the only model that may read company documents.
-    llm_provider: Literal["fake", "anthropic", "local"] = "fake"
+    llm_provider: Literal["fake", "anthropic", "openai", "local"] = "fake"
     anthropic_api_key: str = ""
     answer_model: str = "claude-sonnet-5-5"
     verify_model: str = "claude-haiku-5-5"
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_answer_model: str = "gpt-4.1"
+    openai_verify_model: str = "gpt-4.1-mini"
     embedding_provider: Literal["fake", "fastembed", "voyage"] = "fake"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     voyage_api_key: str = ""
@@ -67,7 +71,7 @@ class Settings(BaseSettings):
     # Public research lane: published papers and web pages, reached only through the egress guard.
     public_research_enabled: bool = False
     default_scope: Literal["internal", "public", "both"] = "internal"
-    public_llm_provider: Literal["none", "fake", "anthropic"] = "none"  # may read PUBLIC text only
+    public_llm_provider: Literal["none", "fake", "anthropic", "openai"] = "none"  # may read PUBLIC text only
     public_sources: str = "arxiv,crossref,openalex,europepmc,semanticscholar"  # + web
     public_results_per_source: int = Field(5, ge=1, le=20)
     public_top_k: int = Field(6, ge=1, le=20)
@@ -151,7 +155,7 @@ class Settings(BaseSettings):
     ocr_max_pages: int = Field(200, ge=1, le=2000)
     egress_mode: Literal["allowlist", "open"] = "allowlist"  # open = any public https host (needs web source)
     egress_allow_hosts: str = (
-        "export.arxiv.org,api.crossref.org,api.openalex.org,www.ebi.ac.uk,api.semanticscholar.org,api.anthropic.com,"
+        "export.arxiv.org,api.crossref.org,api.openalex.org,www.ebi.ac.uk,api.semanticscholar.org,api.anthropic.com,api.openai.com,"
         "arxiv.org,europepmc.org"  # the last two serve open-access PDFs (phase 3 full text)
     )
     egress_proxy_url: str = ""  # e.g. http://egress-proxy:3128 ; required in prod private mode
@@ -281,6 +285,8 @@ class Settings(BaseSettings):
             return
         if self.llm_provider == "anthropic":
             raise RuntimeError("PRIVATE_MODE: LLM_PROVIDER=anthropic would send company text to a hosted model; use 'local'")
+        if self.llm_provider == "openai":
+            raise RuntimeError("PRIVATE_MODE: LLM_PROVIDER=openai would send company text to a hosted model; use 'local'")
         if self.embedding_provider == "voyage":
             raise RuntimeError(
                 "PRIVATE_MODE: EMBEDDING_PROVIDER=voyage would send company text to a hosted API; use fastembed"

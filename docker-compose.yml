@@ -5,6 +5,10 @@
 # First run:  docker compose run --rm api python -m app.seed      (demo users, collections, 20 documents)
 #
 # Optional: WITH_ML=true docker compose build   -> real local embeddings (fastembed) baked into the image.
+#
+# Its own project name, so its containers and volumes (citesure-dev_pgdata, ...) never touch the private stack's
+# (project "citesure"): running this file must not open the private database with development settings.
+name: citesure-dev
 
 x-backend-env: &backend-env
   ENV: dev
@@ -13,6 +17,9 @@ x-backend-env: &backend-env
   CORS_ORIGINS: http://localhost:5173
   LLM_PROVIDER: ${LLM_PROVIDER:-fake}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_ANSWER_MODEL: ${OPENAI_ANSWER_MODEL:-gpt-4.1}
+  OPENAI_VERIFY_MODEL: ${OPENAI_VERIFY_MODEL:-gpt-4.1-mini}
   ANSWER_MODEL: ${ANSWER_MODEL:-claude-sonnet-5-5}
   VERIFY_MODEL: ${VERIFY_MODEL:-claude-haiku-5-5}
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fake}

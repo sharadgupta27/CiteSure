@@ -68,7 +68,7 @@ agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/
 
 ## Commands
 
-> Verified against the running project. Extra commands: `python agent-hooks/install.py --check` (agent-pack copies in sync), `python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest`, `python corpus/validate_golden.py`, `bash security/run-scans.sh`. Counts: 213 unit + 86 integration backend tests, 72 frontend, 9 E2E.
+> Verified against the running project. Extra commands: `python agent-hooks/install.py --check` (agent-pack copies in sync), `python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest`, `python corpus/validate_golden.py`, `bash security/run-scans.sh`. Counts (2026-11-10): 430 unit + 184 integration backend tests, 165 frontend, 9 E2E happy-path (plus screenshot specs), 60 agent-hooks, 13 MCP server, 13 custom agent.
 
 ```bash
 # Full stack

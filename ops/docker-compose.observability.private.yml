@@ -1,0 +1,84 @@
+# Observability for the PRIVATE stack: Prometheus (metrics + alerts), Grafana (dashboards), Tempo (traces) behind an
+# OpenTelemetry Collector, and Loki (logs, see below).
+#
+#   docker compose -f docker-compose.private.yml -f ops/docker-compose.observability.private.yml --env-file .env.private up -d
+#   Grafana http://127.0.0.1:8080/grafana/  (user admin, password GRAFANA_ADMIN_PASSWORD)
+#
+# Why this is not ops/docker-compose.observability.yml (the development overlay):
+#   * Every service here joins ONLY the `internal` network, which has no route to the internet. Nothing in this file
+#     can reach the outside, so deploy/verify-isolation.sh stays green; tests/unit/test_deploy_config.py enforces it.
+#   * No service publishes a port. Grafana is reached through Caddy (deploy/Caddyfile.private routes /grafana), on the
+#     same BIND_ADDRESS:HTTP_PORT as the app, so it is exactly as reachable as CiteSure itself and no more.
+#   * Grafana needs a real admin password (no admin/admin default) and never phones home.
+#   * No Promtail: it reads logs through /var/run/docker.sock, and that socket controls Docker itself (a compromised
+#     container holding it could start another one on the internet-facing network). The dashboard's "API warnings and
+#     errors" log panel is therefore empty here; use `docker compose logs api`. Loki is kept so it can be fed later
+#     without the socket.
+#   * Its own volumes, so dashboards and data never mix with the development overlay's.
+
+services:
+  api:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  worker:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    networks: [internal]
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_private_data:/prometheus
+    depends_on: [api]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    networks: [internal]
+    volumes: ["./ops/otel-collector.yaml:/etc/otel/config.yaml:ro"]
+    depends_on: [tempo]
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    networks: [internal]
+    volumes: ["./ops/tempo.yaml:/etc/tempo.yaml:ro", "tempo_private_data:/var/tempo"]
+
+  loki:
+    image: grafana/loki:3.2.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    networks: [internal]
+    volumes: ["./ops/loki.yaml:/etc/loki/config.yaml:ro", "loki_private_data:/loki"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    networks: [internal]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD (no default password for the private stack)}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:${HTTP_PORT:-8080}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # It has no route out anyway; these stop it trying (and logging the failures).
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_METRICS_ENABLED: "false" # Caddy would otherwise serve Grafana's own /grafana/metrics to every visitor
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_private_data:/var/lib/grafana
+    depends_on: [prometheus, tempo, loki]
+
+volumes:
+  prometheus_private_data:
+  tempo_private_data:
+  loki_private_data:
+  grafana_private_data:

@@ -11,6 +11,10 @@ def build_llm(settings: Settings) -> LLMProvider:
         from app.llm.anthropic_provider import AnthropicProvider
 
         return AnthropicProvider(settings)
+    if settings.llm_provider == "openai":
+        from app.llm.openai_provider import OpenAIProvider
+
+        return OpenAIProvider(settings)
     if settings.llm_provider == "local":
         from app.llm.local_provider import LocalProvider
 
@@ -25,6 +29,10 @@ def build_public_llm(settings: Settings) -> LLMProvider | None:
         from app.llm.anthropic_provider import AnthropicProvider
 
         return AnthropicProvider(settings, proxy_url=settings.egress_proxy_url)
+    if settings.public_llm_provider == "openai":
+        from app.llm.openai_provider import OpenAIProvider
+
+        return OpenAIProvider(settings, proxy_url=settings.egress_proxy_url)
     if settings.public_llm_provider == "fake":
         return FakeProvider()
     return None

@@ -109,6 +109,52 @@ def test_the_env_example_documents_every_variable_the_compose_file_requires(comp
         "EGRESS_DENY_TERMS",
         "PUBLIC_LLM_PROVIDER",
         "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
         "BIND_ADDRESS",
     ):
         assert f"{required}=" in example
+
+
+@pytest.mark.parametrize("name", [".env.example", ".env.private.example"])
+def test_no_empty_setting_carries_a_same_line_comment(name: str) -> None:
+    # Docker Compose keeps "KEY=   # note" as the value "# note": an empty JWT_SECRET would become public comment text.
+    for number, line in enumerate((ROOT / name).read_text(encoding="utf-8").splitlines(), 1):
+        key, sep, value = line.partition("=")
+        if sep and not key.startswith("#"):
+            assert not value.strip().startswith("#"), f"{name}:{number}: put the comment for {key} on its own line"
+
+
+# --- the private observability overlay ---------------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def observability() -> dict[str, Any]:
+    return yaml.safe_load((ROOT / "ops" / "docker-compose.observability.private.yml").read_text(encoding="utf-8"))
+
+
+def test_private_observability_never_joins_the_internet_facing_network(observability: dict[str, Any]) -> None:
+    added = {n: s for n, s in observability["services"].items() if n not in {"api", "worker"}}
+    assert added, "the overlay should add the monitoring services"
+    for name, service in added.items():
+        assert networks_of(service) == {"internal"}, f"{name} must join the internal network only"
+        assert "ports" not in service, f"{name} must not publish a port (Grafana goes through Caddy)"
+
+
+def test_private_observability_does_not_mount_the_docker_socket(observability: dict[str, Any]) -> None:
+    # The socket controls Docker: a container holding it could start another one on the edge network.
+    for name, service in observability["services"].items():
+        for volume in service.get("volumes", []):
+            assert "docker.sock" not in str(volume), f"{name} must not mount the Docker socket"
+
+
+def test_private_grafana_needs_a_real_password_and_is_served_through_caddy(observability: dict[str, Any]) -> None:
+    env = observability["services"]["grafana"]["environment"]
+    assert env["GF_SECURITY_ADMIN_PASSWORD"].startswith("${GRAFANA_ADMIN_PASSWORD:?"), "no default admin password"
+    assert env["GF_SERVER_SERVE_FROM_SUB_PATH"] == "true" and env["GF_SERVER_ROOT_URL"].endswith("/grafana/")
+    assert "reverse_proxy /grafana* grafana:3000" in (ROOT / "deploy" / "Caddyfile.private").read_text(encoding="utf-8")
+    assert "GRAFANA_ADMIN_PASSWORD=" in (ROOT / ".env.private.example").read_text(encoding="utf-8")
+
+
+def test_the_development_and_private_stacks_never_share_a_project(compose: dict[str, Any]) -> None:
+    # Same project name = same volumes: the dev stack would open the private database with development settings.
+    dev = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    assert compose["name"] == "citesure"  # pinned: the private volumes (citesure_pgdata, ...) keep their names
+    assert dev["name"] and dev["name"] != compose["name"]

@@ -68,6 +68,7 @@ Open `http://localhost:8080`. The port is bound to `127.0.0.1`. To reach it from
 - Off completely: `PUBLIC_RESEARCH_ENABLED=false`. The API never makes an outbound request, the proxy is idle, and you can also remove the `edge` network from `egress-proxy` for a hard guarantee.
 - Scholarly sources only (default): `PUBLIC_SOURCES=arxiv,crossref,openalex,europepmc,semanticscholar`.
 - With Claude for public text (your API key): `PUBLIC_LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY=...`. Claude then answers public-only questions that passed the guard. Add `web` to `PUBLIC_SOURCES` and set `EGRESS_MODE=open` for arbitrary published pages.
+- With OpenAI for public text (your API key): `PUBLIC_LLM_PROVIDER=openai`, `OPENAI_API_KEY=...` (models: `OPENAI_ANSWER_MODEL`, default `gpt-4.1`, and `OPENAI_VERIFY_MODEL`, default `gpt-4.1-mini`). Same rules as Claude: public-only, guard-cleared questions, through the proxy (`api.openai.com` is on the allow-list). `LLM_PROVIDER=openai` is refused at boot in private mode. The `web` source still needs Claude.
 
 ## Operating it
 
@@ -75,7 +76,7 @@ Open `http://localhost:8080`. The port is bound to `127.0.0.1`. To reach it from
 |---|---|
 | Change the model | edit `LOCAL_ANSWER_MODEL`, run `ollama-pull`, `up -d`; run the evaluation (`uv run python -m app.evals.run --matrix evals/experiments.yaml` from `backend/` with `LLM_PROVIDER=local`) and record the numbers in `docs/eval-results.md` |
 | Add a source host | add it to `deploy/egress/allowlist.txt` **and** `EGRESS_ALLOW_HOSTS`; `test_deploy_config.py` fails if they differ |
-| See what left | Grafana "Public lane" panel, `egress` on every answer, `docker compose logs egress-proxy` (one line per connection, hosts only) |
+| See what left | Grafana "Public lane" panel (needs the monitoring overlay, see [Monitoring](#monitoring)), `egress` on every answer, `docker compose logs egress-proxy` (one line per connection, hosts only) |
 | Back up | the `pgdata` and `uploads` volumes; the `ollama` volume is re-downloadable |
 | Update | `git pull && docker compose -f docker-compose.private.yml up -d --build`; migrations run first |
 | Rotate secrets | change `.env`, `up -d`; changing `JWT_SECRET` signs everyone out |
@@ -90,3 +91,23 @@ Open `http://localhost:8080`. The port is bound to `127.0.0.1`. To reach it from
 ## EvalOps and private data
 
 CiteSure's CI sends EvalOps one record per golden question: a hash key, pass or fail, a score, a latency and a short output. The shipped golden set and the CI run use the fictional corpus. For a real corpus set `PRIVATE_MODE=true` (or pass `--redact`): the dataset export replaces question and reference-answer text with `[redacted]`, and the results carry `[answered]` or `[refused]` instead of answer text, so EvalOps keeps its history and its gate while the words stay here. Verified against a live EvalOps: it stored 40 cases with `[redacted]` inputs and `[answered]`/`[refused]` outputs and still passed, passed against a baseline, and failed on a regression. Do not run EvalOps' own real-model evaluators over real company questions unless you accept that they go to the evaluator's provider.
+
+## Monitoring
+
+Grafana, Prometheus, Tempo, the OpenTelemetry Collector and Loki run as an optional overlay:
+
+```bash
+docker compose -f docker-compose.private.yml -f ops/docker-compose.observability.private.yml --env-file .env.private up -d
+```
+
+Open http://localhost:8080/grafana/ (user `admin`, password `GRAFANA_ADMIN_PASSWORD` from your env file; there is no default) and pick the **CiteSure: RAG health** dashboard.
+
+How the overlay keeps the private stack's promise:
+
+- Every monitoring service joins only the `internal` network, which has no route out, and none publishes a port. Grafana is reached through Caddy on the same address as the app, so it is exactly as reachable as CiteSure. `tests/unit/test_deploy_config.py` fails if a monitoring service joins `edge`, publishes a port or mounts the Docker socket.
+- Grafana's update checks, usage reporting, news feed and its own `/metrics` page are switched off.
+- **No Promtail.** It collects logs through `/var/run/docker.sock`, and that socket controls Docker: a compromised container holding it could start another container on the internet-facing network. The dashboard's "API warnings and errors" panel is therefore empty in private mode; read logs with `docker compose -f docker-compose.private.yml logs api`.
+- Its own volumes (`citesure_grafana_private_data`, ...), separate from the development overlay's.
+
+`deploy/verify-isolation.sh -f ops/docker-compose.observability.private.yml --env-file .env.private` checks the running stack with the overlay included.
+

@@ -46,7 +46,7 @@ The copied-text check is why a user cannot paste a paragraph of a policy into a 
 | Situation | Answering and verifying model |
 |---|---|
 | Any company text in the prompt (`internal` or `both` with internal hits) | the **internal** model (`providers.llm`). In private mode this is local, and a hosted model is refused at boot and again at call time (`PrivacyViolation`). |
-| Public passages only, and the whole question was cleared | the **public** model (`PUBLIC_LLM_PROVIDER=anthropic`: Claude), if configured |
+| Public passages only, and the whole question was cleared | the **public** model (`PUBLIC_LLM_PROVIDER=anthropic` for Claude, or `openai`), if configured |
 | Public passages only, but the question was not cleared (the user supplied a safe query) | the internal model, because the question itself is part of the prompt |
 
 So Claude never sees a company document, a company question that the guard stopped, or the user's internal wording. It reads papers and web pages, plus questions that look like any public question.
@@ -84,9 +84,9 @@ Papers are cited by title, authors, year and link. A public citation opens a pan
 | `PUBLIC_RESEARCH_ENABLED` | `false` | master switch; off means nothing is ever sent and the scope selector is hidden |
 | `DEFAULT_SCOPE` | `internal` | scope when a request omits it |
 | `PUBLIC_SOURCES` | `arxiv,crossref,openalex,europepmc,semanticscholar` | comma list, see above |
-| `PUBLIC_LLM_PROVIDER` | `none` | `anthropic` lets Claude answer public-only questions and power the `web` source |
+| `PUBLIC_LLM_PROVIDER` | `none` | `anthropic` lets Claude answer public-only questions and power the `web` source; `openai` lets an OpenAI model (`OPENAI_ANSWER_MODEL`, `OPENAI_VERIFY_MODEL`) answer them, without the `web` source |
 | `EGRESS_MODE` | `allowlist` | `open` only for the `web` source |
-| `EGRESS_ALLOW_HOSTS` | the scholarly APIs, `api.anthropic.com`, and `arxiv.org` and `europepmc.org` (open-access PDFs) | must match `deploy/egress/allowlist.txt` (a test enforces it) |
+| `EGRESS_ALLOW_HOSTS` | the scholarly APIs, `api.anthropic.com`, `api.openai.com`, and `arxiv.org` and `europepmc.org` (open-access PDFs) | must match `deploy/egress/allowlist.txt` (a test enforces it) |
 | `EGRESS_PROXY_URL` | empty | the allow-list proxy; required in prod private mode |
 | `EGRESS_DENY_TERMS`, `EGRESS_ALLOW_TERMS`, `EGRESS_CANARIES` | empty | the lists above |
 | `EGRESS_OVERLAP_WORDS`, `EGRESS_MAX_QUERY_CHARS` | `6`, `300` | guard thresholds |

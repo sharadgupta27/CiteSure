@@ -41,3 +41,8 @@ Thumbs.db
 .claude/state/
 agent-hooks/logs/
 .worktrees/
+
+plan.md
+product-spec.md
+CLAUDE.md
+AGENTS.md

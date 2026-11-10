@@ -2,6 +2,8 @@
 # Collector, and Loki + Promtail (logs).
 #
 #   docker compose -f docker-compose.yml -f ops/docker-compose.observability.yml up -d
+#   (development stack only. For the private stack use ops/docker-compose.observability.private.yml, which keeps every
+#   service off the internet and leaves out Promtail's Docker-socket mount.)
 #   Grafana http://localhost:3000 (admin / admin, change it)    Prometheus http://localhost:9090
 #
 # The overlay also switches tracing on in the API and the worker by pointing them at the collector.
