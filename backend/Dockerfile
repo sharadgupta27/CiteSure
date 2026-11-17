@@ -35,6 +35,7 @@ TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/opt/models'); TextCrossEncod
 
 # --- runtime: no compilers, no uv cache, non-root user --------------------------------------
 FROM python:3.12-slim AS runtime-os-false
+RUN apt-get update && apt-get upgrade -y && apt-get clean
 
 FROM python:3.12-slim AS runtime-os-true
 ARG OCR_LANGS="eng"
@@ -43,6 +44,7 @@ RUN set -eux; \
     packages="tesseract-ocr"; \
     for lang in $(echo "$OCR_LANGS" | tr '+,' '  '); do packages="$packages tesseract-ocr-$lang"; done; \
     apt-get update; \
+    apt-get upgrade -y; \
     apt-get install -y --no-install-recommends $packages; \
     rm -rf /var/lib/apt/lists/*; \
     ln -s "$(dirname "$(find /usr/share/tesseract-ocr -name eng.traineddata | head -n 1)")" /usr/share/tessdata
