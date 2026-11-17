@@ -54,6 +54,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/srv/citesure/backend/.venv/bin:$PATH" \
     FASTEMBED_CACHE_PATH=/opt/models \
     STORAGE_PATH=/data/uploads
+# Take Debian security fixes released after the python:3.12-slim tag was built (the CI Trivy scan fails on fixable
+# HIGH/CRITICAL OS packages, e.g. zlib1g CVE-2026-85091).
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 10001 app && mkdir -p /data/uploads && chown -R app /data
 WORKDIR /srv/citesure/backend
 COPY --from=deps /srv/citesure/backend/.venv ./.venv

@@ -133,7 +133,7 @@ jobs:
       # The official image is run directly instead of a third-party action: one less thing that can be repointed.
       - name: Dependencies, secrets and misconfiguration (Trivy)
         run: >-
-          docker run --rm -v "$PWD:/repo" aquasec/trivy:0.57.0 fs --scanners vuln,secret,misconfig
+          docker run --rm -v "$PWD:/repo" aquasec/trivy:0.57.0 fs --db-repository mirror.gcr.io/aquasec/trivy-db:2 --java-db-repository mirror.gcr.io/aquasec/trivy-java-db:1 --scanners vuln,secret,misconfig
           --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
           --skip-dirs node_modules,.venv,dist,uploads,security,corpus/raw /repo
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
@@ -161,7 +161,7 @@ jobs:
         run: |
           docker build -f backend/Dockerfile -t citesure-backend:ci .
           # security/trivy-secret.yaml holds the one scoped exception (SDK docstrings that look like a GCP key).
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/security:/cfg:ro" aquasec/trivy:0.57.0 image --secret-config /cfg/trivy-secret.yaml --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 citesure-backend:ci
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/security:/cfg:ro" aquasec/trivy:0.57.0 image --db-repository mirror.gcr.io/aquasec/trivy-db:2 --java-db-repository mirror.gcr.io/aquasec/trivy-java-db:1 --secret-config /cfg/trivy-secret.yaml --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 citesure-backend:ci
 
   private-stack:
     name: Private stack (egress proxy policy, compose file)
