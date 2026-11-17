@@ -34,9 +34,15 @@ TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/opt/models'); TextCrossEncod
     else mkdir -p /opt/models; fi
 
 # --- runtime: no compilers, no uv cache, non-root user --------------------------------------
-FROM python:3.12-slim AS runtime-os-false
+FROM python:3.12-slim AS runtime-base
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends --only-upgrade zlib1g; \
+    find /var/lib/apt/lists -type f -delete
 
-FROM python:3.12-slim AS runtime-os-true
+FROM runtime-base AS runtime-os-false
+
+FROM runtime-base AS runtime-os-true
 ARG OCR_LANGS="eng"
 # The tessdata folder differs between Debian releases, so link whichever one the packages created to a fixed path.
 RUN set -eux; \
