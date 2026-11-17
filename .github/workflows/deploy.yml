@@ -1,14 +1,13 @@
 name: Deploy
 
-# Runs only after CI succeeded on main. Builds and pushes images to GHCR, then updates the EC2 host over SSH,
-# applies migrations and checks health. Needs the repository secrets EC2_HOST, EC2_USER and EC2_SSH_KEY and the
-# "production" environment (add required reviewers there if you want a manual approval).
+# Manual only (Actions -> Deploy -> Run workflow): there is no EC2 host yet, so an automatic run after every green CI
+# on main could only fail. Builds and pushes images to GHCR, then updates the EC2 host over SSH, applies migrations and
+# checks health. Needs the repository secrets EC2_HOST, EC2_USER and EC2_SSH_KEY and the "production" environment
+# (add required reviewers there if you want a manual approval).
+# To deploy automatically after CI again, add back:
+#   workflow_run: { workflows: [CI], types: [completed], branches: [main] }
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -21,7 +20,6 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
   deploy:
@@ -39,6 +37,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      # Image names must be lowercase, and the repository is "CiteSure".
+      - name: Image prefix
+        run: echo "IMAGE_PREFIX=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:

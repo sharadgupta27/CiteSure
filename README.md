@@ -258,7 +258,7 @@ Known gaps are listed honestly in the threat model (JWT in `localStorage`, in-me
 
 ## 8. Deployment
 
-Target: one AWS EC2 `t3.medium` running [docker-compose.prod.yml](docker-compose.prod.yml) behind Caddy (automatic HTTPS), images from GHCR, built and rolled out by [.github/workflows/deploy.yml](.github/workflows/deploy.yml) after CI is green. Step-by-step: [docs/deployment.md](docs/deployment.md).
+Target: one AWS EC2 `t3.medium` running [docker-compose.prod.yml](docker-compose.prod.yml) behind Caddy (automatic HTTPS), images from GHCR, built and rolled out by [.github/workflows/deploy.yml](.github/workflows/deploy.yml) when started by hand (Actions → Deploy → Run workflow; automatic deploys after green CI are off until an EC2 host exists). Step-by-step: [docs/deployment.md](docs/deployment.md).
 
 Free and private options (your own machine, Tailscale Funnel or Cloudflare Tunnel for EvalOps, a free VM for a demo): [docs/free-deployment.md](docs/free-deployment.md). The private stack ([docker-compose.private.yml](docker-compose.private.yml)) was brought up and verified locally.
 
