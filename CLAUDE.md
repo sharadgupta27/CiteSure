@@ -71,7 +71,7 @@ deploy/demo/  render.yaml  single-container public demo (free Render instance; d
 
 ## Commands
 
-> Verified against the running project. Extra commands: `python agent-hooks/install.py --check` (agent-pack copies in sync), `python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest`, `python corpus/validate_golden.py`, `bash security/run-scans.sh`. Counts (2026-11-10): 458 unit + 186 integration backend tests, 165 frontend, 9 E2E happy-path (plus screenshot specs), 60 agent-hooks, 13 MCP server, 13 custom agent.
+> Verified against the running project. Extra commands: `python agent-hooks/install.py --check` (agent-pack copies in sync), `python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest`, `python corpus/validate_golden.py`, `bash security/run-scans.sh`. Counts (2026-11-23): 469 unit + 189 integration backend tests, 166 frontend, 12 E2E (9 happy path, 2 public lane, 1 signed download; plus screenshot and video specs), 60 agent-hooks, 13 MCP server, 13 custom agent.
 
 ```bash
 # Full stack

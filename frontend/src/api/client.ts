@@ -68,13 +68,10 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
   return result.data;
 }
 
-/** Download a file through the authenticated client and return it as a Blob (used for "open original"). */
-export async function downloadDocument(documentId: string): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(`${API_BASE}/documents/${documentId}/file`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) throw new ApiError(response.status, "download_failed", "Could not download the file");
-  const disposition = response.headers.get("content-disposition") ?? "";
-  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "document";
-  return { blob: await response.blob(), filename };
+/** A short-lived signed link to the original file ("Download original"). The browser then downloads it natively
+ *  (streamed, with its own progress) and the login token never appears in a URL. */
+export async function createDownloadLink(documentId: string): Promise<Schemas["DownloadLink"]> {
+  return unwrap(
+    await api.POST("/documents/{document_id}/download-link", { params: { path: { document_id: documentId } } }),
+  );
 }

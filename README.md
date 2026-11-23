@@ -13,7 +13,7 @@
 | **Demo video** (1 min, captioned) | [MP4, 1.1 MB](docs/media/citesure-demo.mp4) · recorded by Playwright, how to re-record: [docs/demo.md](docs/demo.md) |
 | **Live demo** | **<https://citesure-demo.onrender.com>**: sign in as `employee@acme.example` / `citesure-demo` (free tier: the first visit after 15 idle minutes shows a "waking up" page for about a minute). How it is hosted: [docs/public-demo.md](docs/public-demo.md) |
 | **How it was built** | Claude Code as a 12-agent team: [agent-team/](agent-team/README.md), log in [docs/ai-workflow.md](docs/ai-workflow.md) |
-| **Beginner's guide** | 16 plain-language chapters: [substack/](substack/00-series-index.md) |
+| **Beginner's guide** | 17 plain-language chapters: [substack/](substack/00-series-index.md) |
 
 > Final project for the DataTalksClub **AI Dev Tools Zoomcamp** ([rubric](docs/course/final-project-rubric.md), [Module 5 agent pack](docs/course/module5-requirements.md)).
 
@@ -97,12 +97,12 @@ WITH_ML=true EMBEDDING_PROVIDER=fastembed RERANKER=cross-encoder docker compose 
 
 | What | Command | Count |
 |---|---|---|
-| Backend unit (fakes, fast) | `cd backend && uv sync && uv run pytest -m "not integration"` | 458 |
-| Backend integration (real Postgres; ACL leak and prompt-injection tests) | `cd backend && uv run pytest -m integration` (needs Docker) | 186 |
+| Backend unit (fakes, fast) | `cd backend && uv sync && uv run pytest -m "not integration"` | 469 |
+| Backend integration (real Postgres; ACL leak and prompt-injection tests) | `cd backend && uv run pytest -m integration` (needs Docker) | 189 |
 | Lint and types | `cd backend && uv run ruff check . && uv run mypy app` | |
-| Frontend | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck` | 165 |
+| Frontend | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck` | 166 |
 | API contract | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py` | |
-| End to end | stack up and seeded, then `cd e2e && npm ci && npx playwright install chromium && npx playwright test` | 9 |
+| End to end | stack up (with `PUBLIC_RESEARCH_ENABLED=true PUBLIC_SOURCES=sample PUBLIC_LLM_PROVIDER=fake` for the public-lane tests) and seeded, then `cd e2e && npm ci && npx playwright install chromium && npx playwright test` | 12 |
 | Agent pack | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest` | 60 + 13 |
 | Evaluation | `cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml` | 40 questions |
 

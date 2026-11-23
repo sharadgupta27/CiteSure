@@ -39,9 +39,9 @@ Data model and endpoints: [docs/architecture.md](docs/architecture.md) and [open
 | 7 | Containers, CI/CD, deployment | ✅ | Public demo live at <https://citesure-demo.onrender.com> (one free Render container, fake models; [docs/public-demo.md](docs/public-demo.md)). The AWS production pipeline is written but not run |
 | 8 | Observability (OpenTelemetry, Prometheus, Grafana, Loki, Tempo, alerts) | ✅ | |
 | 9 | Agent extension pack (skills, subagents, MCP server, hooks, plugin, nightly agent) | ✅ | A live Claude Code session using the pack was not recorded |
-| 10 | Security scans, threat model, AI data policy, hardening | 🟡 | File downloads need auth, but there are no short-lived signed URLs |
-| 11 | Docs, demo video, Substack guide | 🟡 | Demo video recorded ([docs/demo.md](docs/demo.md)); the Substack series is drafted but not published |
-| 12 | Private mode and public research | 🟡 | Egress guard, allow-list proxy, canary tests done. No Playwright test of the public lane (needs live internet) |
+| 10 | Security scans, threat model, AI data policy, hardening | ✅ | Short-lived signed download links: bound to one user and one document, 60 s, access re-checked on use, never usable as a login token (threat model T23) |
+| 11 | Docs, demo video, Substack guide | 🟡 | Demo video in the README; live demo; 17 Substack chapters ready to publish ([substack/README.md](substack/README.md)). Left: publishing them, which needs the owner's Substack account |
+| 12 | Private mode and public research | ✅ | Egress guard, allow-list proxy, canary tests; Playwright tests of the public lane run offline in CI with invented papers (`PUBLIC_SOURCES=sample`, refused in prod) |
 | 13 | Merge of `document_explorer` (five sub-phases) | ✅ | See section 4 |
 
 ## 4. Merged features (from `document_explorer`)

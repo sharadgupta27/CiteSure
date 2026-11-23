@@ -263,3 +263,66 @@ async def test_a_collection_cannot_be_opened_to_a_group_from_another_workspace(c
         headers=admin_a,
     )
     assert response.status_code == 422
+
+
+# --- signed download links (POST /documents/{id}/download-link, GET /files/{token}) ------------------------------
+async def test_a_signed_link_is_only_issued_for_readable_documents(client: httpx.AsyncClient, world: World) -> None:
+    doc_ids, _ = await confidential_ids(client, world)
+    for doc_id in doc_ids:
+        response = await client.post(f"{API}/documents/{doc_id}/download-link", headers=world.employee)
+        assert response.status_code == 404, "a plain member got a download link for a restricted document"
+    assert (await client.post(f"{API}/documents/{doc_ids[0]}/download-link")).status_code == 401
+
+
+async def test_a_signed_link_downloads_the_same_bytes_without_a_bearer_token(
+    client: httpx.AsyncClient, world: World
+) -> None:
+    doc_ids, _ = await confidential_ids(client, world)
+    link = (await client.post(f"{API}/documents/{doc_ids[0]}/download-link", headers=world.hr)).json()
+    assert link["url"].startswith(f"{API}/files/") and link["expires_at"]
+    by_link = await client.get(link["url"])  # no Authorization header
+    assert by_link.status_code == 200
+    assert by_link.content == (await client.get(f"{API}/documents/{doc_ids[0]}/file", headers=world.hr)).content
+    assert by_link.headers["cache-control"] == "no-store"
+    assert by_link.headers["content-disposition"].startswith("attachment")
+
+
+async def test_a_forged_or_tampered_link_is_rejected(client: httpx.AsyncClient, world: World) -> None:
+    doc_ids, _ = await confidential_ids(client, world)
+    link = (await client.post(f"{API}/documents/{doc_ids[0]}/download-link", headers=world.hr)).json()
+    assert (await client.get(f"{API}/files/not-a-token")).status_code == 401
+    assert (await client.get(link["url"][:-3] + "abc")).status_code == 401
+    # A login token is not a download link, and a download link is not a login token.
+    login_token = world.employee["Authorization"].removeprefix("Bearer ")
+    assert (await client.get(f"{API}/files/{login_token}")).status_code == 401
+    link_token = link["url"].rsplit("/", 1)[1]
+    assert (await client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {link_token}"})).status_code == 401
+
+
+async def test_revoking_access_stops_an_unused_signed_link(client: httpx.AsyncClient, app: Any) -> None:
+    workspace_id, admin, _ = await new_workspace(client)
+    hr_email, hr = await register(client, "hr")
+    await client.post(f"{API}/workspaces/{workspace_id}/members", json={"email": hr_email, "role": "member"}, headers=admin)
+    group = (await client.post(f"{API}/workspaces/{workspace_id}/groups", json={"name": "hr"}, headers=admin)).json()
+    other = (await client.post(f"{API}/workspaces/{workspace_id}/groups", json={"name": "finance"}, headers=admin)).json()
+    await client.post(f"{API}/groups/{group['id']}/members", json={"email": hr_email}, headers=admin)
+    secret = (
+        await client.post(
+            f"{API}/workspaces/{workspace_id}/collections",
+            json={"name": "Secret", "visibility": "groups", "group_ids": [group["id"]]},
+            headers=admin,
+        )
+    ).json()
+    upload = await client.post(
+        f"{API}/collections/{secret['id']}/documents",
+        files={"file": ("secret.md", b"# Secret\n\nThe launch codename is Bluebird.", "text/markdown")},
+        headers=admin,
+    )
+    assert upload.status_code == 202
+    link = (await client.post(f"{API}/documents/{upload.json()['id']}/download-link", headers=hr)).json()
+
+    await client.patch(f"{API}/collections/{secret['id']}", json={"group_ids": [other["id"]]}, headers=admin)
+
+    response = await client.get(link["url"])
+    assert response.status_code == 404, "a link issued before access was revoked still downloaded the file"
+    assert b"Bluebird" not in response.content

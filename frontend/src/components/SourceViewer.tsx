@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { downloadDocument, type Citation } from "../api/client";
+import { createDownloadLink, type Citation } from "../api/client";
 import { useDocumentChunks } from "../api/hooks";
 import { useViewerDocument } from "../api/hooksViewer";
 import { describeLocation, safeHref } from "../lib/citations";
@@ -63,13 +63,12 @@ export function SourceViewer({ citation, onClose }: Props) {
   async function openOriginal() {
     if (!citation) return;
     try {
-      const { blob, filename } = await downloadDocument(citation.document_id);
-      const url = URL.createObjectURL(blob);
+      const { url } = await createDownloadLink(citation.document_id);
+      // Same origin, served as an attachment: the browser saves it under the server's filename.
       const link = document.createElement("a");
       link.href = url;
-      link.download = filename;
+      link.rel = "noopener noreferrer";
       link.click();
-      URL.revokeObjectURL(url);
     } catch (error) {
       setDownloadError(error);
     }

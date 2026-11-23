@@ -61,6 +61,7 @@ So Claude never sees a company document, a company question that the guard stopp
 | `europepmc` | PubMed and open-access life-science abstracts | none | |
 | `semanticscholar` | abstracts | none | unauthenticated use is rate limited, off by default |
 | `web` | passages from any published page | Anthropic | Claude's `web_search` tool finds URLs from the guarded query; CiteSure fetches the pages itself, so the quoted text is the page's real text |
+| `sample` | three invented "[Sample]" papers from `research/sample_papers.py` | none | **for tests and offline demos only**: sends nothing, so the guard, the preview and the answer can be exercised without internet (the browser tests in CI use it). Refused when `ENV=prod` |
 
 Papers are cited by title, authors, year and link. A public citation opens a panel with the exact quote and a link to the original; it has no stored document, but the panel can fetch the paper's open-access full text on demand ([open-access-fulltext.md](open-access-fulltext.md)), after which answers cite page-numbered passages from it. The same checks apply as for company text: the quote must exist in the passage and a judge must find the claim supported, otherwise the claim is dropped.
 

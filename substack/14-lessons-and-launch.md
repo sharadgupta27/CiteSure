@@ -38,10 +38,10 @@ Read this carefully, because it is easy to overclaim:
 
 ## What does *not* exist (said plainly)
 
-- **It is not deployed.** There is no live URL. The pipeline, production compose file, Caddy config and runbook exist and were tested locally, but I did not create AWS resources.
+- **The production setup is not deployed.** The AWS pipeline, production compose file, Caddy config and runbook exist and were tested locally, but I did not create AWS resources. (A free public demo with fake models runs at <https://citesure-demo.onrender.com>; see [chapter 17](17-a-public-demo-and-links-that-expire.md).)
 - **The GitHub workflows were not run on GitHub.** Every command inside them was run locally.
 - **No real-model evaluation** (above).
-- **No demo video**, and the live "Claude Code picks the skill by itself" session was not recorded (it is marked "to rehearse").
+- **The live "Claude Code picks the skill by itself" session was not recorded** (it is marked "to rehearse"). A one-minute product demo video does exist (`docs/media/citesure-demo.mp4`, recorded by Playwright).
 - **Commits came last.** The agent was told not to commit and waited until asked; the history has one commit per phase, made after the fact by splitting files, so early commits do not build alone.
 - **A human has not reviewed** the AI-written security audit or the workflows yet. The log (`docs/ai-workflow.md`) has empty "human review" cells on purpose.
 

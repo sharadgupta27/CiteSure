@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import uuid
+from datetime import datetime
 from pathlib import PurePath
 
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +21,7 @@ from app.repositories import collections as collections_repo
 from app.repositories import documents as documents_repo
 from app.repositories import jobs as jobs_repo
 from app.schemas import api as s
+from app.security import create_file_link_token
 from app.services import acl
 from app.storage.base import BlobStore
 
@@ -174,6 +176,16 @@ class DocumentService:
         if row is None:
             raise NotFound("Document not found")
         return await self.blobs.get(row.blob_key), row.mime, row.filename
+
+    async def download_link(self, user_id: uuid.UUID, document_id: uuid.UUID) -> tuple[str, datetime]:
+        """A signed token for one user and one document. Only issued for a document the user may read now; `file`
+        checks again when the token is used, so access revoked in between still wins."""
+        row = await documents_repo.get_for_admin(
+            self.session, document_id, allowed_collection_ids=await self._visible(user_id)
+        )
+        if row is None:
+            raise NotFound("Document not found")
+        return create_file_link_token(self.settings, user_id, document_id)
 
     async def chunks(self, user_id: uuid.UUID, document_id: uuid.UUID) -> list[s.Chunk]:
         visible = await self._visible(user_id)

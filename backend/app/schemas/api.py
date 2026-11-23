@@ -177,6 +177,11 @@ class PublicQueryPreviewRequest(ApiModel):
     query: str | None = Field(default=None, max_length=300)
 
 
+class DownloadLink(ApiModel):
+    url: str
+    expires_at: datetime
+
+
 class PublicQueryPreview(ApiModel):
     query: str
     allowed: bool

@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 from app.egress import EgressClient
 from app.research.papers import Paper
+from app.research.sample_papers import SAMPLE_PAPERS
 
 ATOM = {"a": "http://www.w3.org/2005/Atom"}
 MIN_ABSTRACT_CHARS = 80  # shorter than this is a title or a stub, not evidence
@@ -277,6 +278,18 @@ class SemanticScholarConnector:
         return parse_semantic_scholar(response.content) if response.status == 200 else []
 
 
+class SampleConnector:
+    """Offline invented papers (`sample_papers.py`) for browser tests and demos without internet. Sends nothing: the
+    egress guard still checks the query first, exactly as for a real source."""
+
+    name = "sample"
+
+    async def search(self, client: EgressClient, query: str, limit: int) -> list[Paper]:
+        terms = {t.lower() for t in _terms(query, 12) if len(t) > 2}
+        scored = [(sum(t in f"{p.title} {p.text}".lower() for t in terms), p) for p in SAMPLE_PAPERS]
+        return [p for score, p in sorted(scored, key=lambda pair: -pair[0]) if score > 0][:limit]
+
+
 SCHOLARLY = {"arxiv", "crossref", "openalex", "europepmc", "semanticscholar"}
 
 
@@ -287,6 +300,7 @@ def build_connectors(names: list[str], contact_email: str = "") -> list[Connecto
         "openalex": OpenAlexConnector(contact_email),
         "europepmc": EuropePmcConnector(),
         "semanticscholar": SemanticScholarConnector(),
+        "sample": SampleConnector(),
     }
     unknown = [n for n in names if n not in available and n != "web"]
     if unknown:

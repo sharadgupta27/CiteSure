@@ -95,6 +95,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22 }
       - name: Start the stack and load the demo company
+        # The public research lane runs offline: invented papers (PUBLIC_SOURCES=sample) and the fake model.
+        env:
+          PUBLIC_RESEARCH_ENABLED: "true"
+          PUBLIC_SOURCES: sample
+          PUBLIC_LLM_PROVIDER: fake
         run: |
           docker compose up -d --build --wait
           docker compose run --rm api python -m app.seed

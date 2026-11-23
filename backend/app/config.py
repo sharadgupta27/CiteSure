@@ -189,6 +189,9 @@ class Settings(BaseSettings):
     s3_bucket: str = ""
     max_upload_mb: int = 20
     uploads_enabled: bool = True
+    # Signed download links (POST /documents/{id}/download-link): short, because the token sits in a URL that proxies
+    # may log. Access is checked again when the link is used.
+    file_link_ttl_seconds: int = Field(60, ge=10, le=900)
 
     # Limits
     rate_limit_ask_per_min: int = 30
@@ -279,6 +282,8 @@ class Settings(BaseSettings):
             raise RuntimeError("EGRESS_MODE=open is only for the 'web' source; add it to PUBLIC_SOURCES or use allowlist")
         if "web" in self.public_source_list and self.egress_mode != "open":
             raise RuntimeError("The 'web' source reads arbitrary pages: set EGRESS_MODE=open (the allow-list refuses them)")
+        if "sample" in self.public_source_list and self.env == "prod":
+            raise RuntimeError("PUBLIC_SOURCES=sample serves invented papers for tests; it is refused when ENV=prod")
         if "web" in self.public_source_list and self.public_llm_provider != "anthropic":
             raise RuntimeError("The 'web' source finds pages with Claude's web search: set PUBLIC_LLM_PROVIDER=anthropic")
         if not self.private_mode:

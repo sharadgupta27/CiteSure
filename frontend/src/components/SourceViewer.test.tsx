@@ -55,6 +55,29 @@ describe("SourceViewer", () => {
     expect(screen.queryByText(/A second chunk/)).not.toBeInTheDocument();
   });
 
+  it("downloads the original through a signed link, never with the login token in the URL", async () => {
+    renderViewer();
+    await screen.findByText("16 weeks of fully paid leave");
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ url: "/api/v1/files/signed-abc", expires_at: "2026-11-23T12:00:00Z" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const clicked: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this.getAttribute("href") ?? "");
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Download original" }));
+    await waitFor(() => expect(clicked).toEqual(["/api/v1/files/signed-abc"]));
+    const request = fetchMock.mock.calls.at(-1)![0] as Request;
+    expect(request.method).toBe("POST");
+    expect(request.url).toMatch(/\/documents\/d1\/download-link$/);
+    expect(clicked[0]).not.toContain("tok");
+    click.mockRestore();
+  });
+
   it("can show the rest of the document", async () => {
     renderViewer();
     await screen.findByText("16 weeks of fully paid leave");

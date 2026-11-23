@@ -137,4 +137,4 @@ All off by default, all documented in their own pages:
 3. Open the audit log, then change one row directly in the database. What does **Verify chain** report?
 4. Open the viewer on a PDF, read two pages, and watch the progress in a study set.
 
-**Next:** the series ends here. **Back to the index:** [The CiteSure series](00-series-index.md) · [Glossary](glossary.md)
+**Next:** [Chapter 17: a free public demo, links that expire, and a test that needs no internet](17-a-public-demo-and-links-that-expire.md) · **Back to the index:** [The CiteSure series](00-series-index.md)

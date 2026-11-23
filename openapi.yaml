@@ -374,6 +374,45 @@ paths:
               schema: { type: string, format: binary }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{document_id}/download-link:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [documents]
+      operationId: createDocumentDownloadLink
+      summary: A short-lived signed link to the original file (ACL-checked)
+      description: |
+        Lets the browser download the original file natively (streamed, with its own progress bar) without putting the
+        login token in a URL. The link is bound to this user and this document, expires after `FILE_LINK_TTL_SECONDS`
+        (default 60), and access is checked again when it is used, so revoking access also stops unused links.
+      responses:
+        '200':
+          description: The signed link
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DownloadLink' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /files/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: The signed token from `createDocumentDownloadLink`
+        schema: { type: string, maxLength: 2048 }
+    get:
+      tags: [documents]
+      operationId: downloadFileByLink
+      summary: Download an original file with a signed link (ACL-checked again)
+      security: []
+      responses:
+        '200':
+          description: The original bytes, as an attachment
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /documents/{document_id}/chunks:
     parameters:
       - $ref: '#/components/parameters/DocumentId'
@@ -1768,7 +1807,7 @@ components:
       description: One outbound step of the public lane. `query` is present only when text actually left the system.
       required: [destination, status, query, reason]
       properties:
-        destination: { type: string, description: 'arxiv, crossref, openalex, europepmc, semanticscholar, web or public' }
+        destination: { type: string, description: 'arxiv, crossref, openalex, europepmc, semanticscholar, web, sample (offline test papers) or public' }
         status: { type: string, enum: [sent, blocked, failed] }
         query: { type: [string, 'null'] }
         reason: { type: [string, 'null'], description: Reason codes for a blocked or failed step, never the blocked text }
@@ -1792,6 +1831,13 @@ components:
           type: [string, 'null']
           maxLength: 300
           description: A query the user edited; checked instead of the derived keywords
+    DownloadLink:
+      type: object
+      required: [url, expires_at]
+      properties:
+        url: { type: string, description: 'Same-origin path, e.g. /api/v1/files/{token}' }
+        expires_at: { type: string, format: date-time }
+
     PublicQueryPreview:
       type: object
       required: [query, allowed, reasons, explanation]

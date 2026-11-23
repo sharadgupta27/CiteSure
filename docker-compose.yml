@@ -29,6 +29,11 @@ x-backend-env: &backend-env
   STORAGE_PATH: /data/uploads
   SEED_PASSWORD: ${SEED_PASSWORD:-citesure-demo}
   TRUST_PROXY_HEADERS: "true"
+  # Public research lane, off by default. CI's browser test turns it on offline with the invented papers:
+  #   PUBLIC_RESEARCH_ENABLED=true PUBLIC_SOURCES=sample PUBLIC_LLM_PROVIDER=fake docker compose up -d
+  PUBLIC_RESEARCH_ENABLED: ${PUBLIC_RESEARCH_ENABLED:-false}
+  PUBLIC_SOURCES: ${PUBLIC_SOURCES:-arxiv,crossref,openalex,europepmc,semanticscholar}
+  PUBLIC_LLM_PROVIDER: ${PUBLIC_LLM_PROVIDER:-none}
 
 x-backend-build: &backend-build
   context: .

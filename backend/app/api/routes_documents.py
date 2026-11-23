@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Path, Response, UploadFile
 
 from app.api.deps import current_user, document_service, get_settings
 from app.api.deps_admin import audit_log
 from app.config import Settings
 from app.errors import PayloadTooLarge
 from app.schemas import api as s
+from app.security import decode_file_link_token
 from app.services import audit as audit_actions
 from app.services.audit import AuditLog
 from app.services.documents import DocumentService
@@ -82,11 +83,7 @@ async def reindex_document(
     return document
 
 
-@router.get("/documents/{document_id}/file", operation_id="getDocumentFile", response_class=Response)
-async def get_document_file(
-    document_id: uuid.UUID, user: s.User = Depends(current_user), svc: DocumentService = Depends(document_service)
-) -> Response:
-    data, mime, filename = await svc.file(user.id, document_id)
+def _file_response(data: bytes, mime: str, filename: str) -> Response:
     ascii_name = filename.encode("ascii", "replace").decode().replace('"', "")
     return Response(
         content=data,
@@ -95,8 +92,38 @@ async def get_document_file(
             "Content-Disposition": f'attachment; filename="{ascii_name}"',
             "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": "sandbox",  # an uploaded HTML file must not run scripts in our origin
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",  # a signed link must not leak onward in a Referer header
         },
     )
+
+
+@router.get("/documents/{document_id}/file", operation_id="getDocumentFile", response_class=Response)
+async def get_document_file(
+    document_id: uuid.UUID, user: s.User = Depends(current_user), svc: DocumentService = Depends(document_service)
+) -> Response:
+    return _file_response(*await svc.file(user.id, document_id))
+
+
+@router.post(
+    "/documents/{document_id}/download-link", operation_id="createDocumentDownloadLink", response_model=s.DownloadLink
+)
+async def create_document_download_link(
+    document_id: uuid.UUID, user: s.User = Depends(current_user), svc: DocumentService = Depends(document_service)
+) -> s.DownloadLink:
+    token, expires_at = await svc.download_link(user.id, document_id)
+    return s.DownloadLink(url=f"/api/v1/files/{token}", expires_at=expires_at)
+
+
+@router.get("/files/{token}", operation_id="downloadFileByLink", response_class=Response)
+async def download_file_by_link(
+    token: str = Path(max_length=2048),
+    settings: Settings = Depends(get_settings),
+    svc: DocumentService = Depends(document_service),
+) -> Response:
+    # No bearer token: the signed link is the credential. `svc.file` re-checks access for the user named in it.
+    user_id, document_id = decode_file_link_token(settings, token)
+    return _file_response(*await svc.file(user_id, document_id))
 
 
 @router.get("/documents/{document_id}/chunks", operation_id="listDocumentChunks", response_model=list[s.Chunk])

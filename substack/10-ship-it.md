@@ -115,7 +115,9 @@ The production Compose file publishes **only Caddy** (ports 80 and 443). Caddy g
 
 ## An honest note about deployment
 
-I wrote the pipeline, the production compose file, the Caddy config and a step-by-step runbook (`docs/deployment.md`). The production images build, and every command in them was tested locally. But **I did not deploy to AWS**: that needs an account, a domain and secrets, and the project rules say never deploy without explicit permission. The same goes for the GitHub Actions workflows: they are valid and pinned, and every command inside was run locally, but I could not run GitHub itself. So the rubric's "deployed with a working URL" is **not** claimed. If you follow the runbook you will have it running in about 30 minutes.
+I wrote the pipeline, the production compose file, the Caddy config and a step-by-step runbook (`docs/deployment.md`). The production images build, and every command in them was tested locally. But **I did not deploy to AWS**: that needs an account, a domain and secrets, and the project rules say never deploy without explicit permission. The same goes for the GitHub Actions workflows: they are valid and pinned, and every command inside was run locally, but I could not run GitHub itself. If you follow the runbook you will have it running in about 30 minutes.
+
+**Later update:** a free **public demo** now runs at <https://citesure-demo.onrender.com>: the whole app in one container with the fake models and the invented handbook. That is not the AWS production setup above, which is still not deployed. How the demo was built, and why it first took five minutes to start, is in [chapter 17](17-a-public-demo-and-links-that-expire.md).
 
 I think saying so plainly is worth more than a screenshot of someone else's server.
 

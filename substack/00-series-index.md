@@ -59,6 +59,7 @@ You need Docker, Python 3.12 with [uv](https://docs.astral.sh/uv/), and Node 22.
 | 14 | [Lessons, results and what to do next](14-lessons-and-launch.md) | What worked, what did not, how to describe it on a résumé | |
 | 15 | [Keep the secrets in, let the science in](15-private-mode-and-public-research.md) | Two lanes: a local model for company text, a guarded door for published research | isolation check |
 | 16 | [Merging a second project: the real page, a study plan and an audit trail](16-merging-a-second-project.md) | Pick one base, port what is missing, and run it for real | screenshots |
+| 17 | [A free public demo, links that expire, and a test that needs no internet](17-a-public-demo-and-links-that-expire.md) | Measure with the real limits; never put a login token in a URL; fake the outside world at the edge | demo |
 
 A [glossary](glossary.md) explains every technical word in one or two sentences. Skim it first if you like.
 

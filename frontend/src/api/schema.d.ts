@@ -254,6 +254,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/download-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A short-lived signed link to the original file (ACL-checked)
+         * @description Lets the browser download the original file natively (streamed, with its own progress bar) without putting the
+         *     login token in a URL. The link is bound to this user and this document, expires after `FILE_LINK_TTL_SECONDS`
+         *     (default 60), and access is checked again when it is used, so revoking access also stops unused links.
+         */
+        post: operations["createDocumentDownloadLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The signed token from `createDocumentDownloadLink` */
+                token: string;
+            };
+            cookie?: never;
+        };
+        /** Download an original file with a signed link (ACL-checked again) */
+        get: operations["downloadFileByLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/chunks": {
         parameters: {
             query?: never;
@@ -1350,7 +1394,7 @@ export interface components {
         SourceType: "internal" | "public";
         /** @description One outbound step of the public lane. `query` is present only when text actually left the system. */
         EgressRecord: {
-            /** @description arxiv, crossref, openalex, europepmc, semanticscholar, web or public */
+            /** @description arxiv, crossref, openalex, europepmc, semanticscholar, web, sample (offline test papers) or public */
             destination: string;
             /** @enum {string} */
             status: "sent" | "blocked" | "failed";
@@ -1371,6 +1415,12 @@ export interface components {
             question: string;
             /** @description A query the user edited; checked instead of the derived keywords */
             query?: string | null;
+        };
+        DownloadLink: {
+            /** @description Same-origin path, e.g. /api/v1/files/{token} */
+            url: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         PublicQueryPreview: {
             query: string;
@@ -2689,6 +2739,55 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The original bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createDocumentDownloadLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The signed link */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadLink"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadFileByLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The signed token from `createDocumentDownloadLink` */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The original bytes, as an attachment */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -1,6 +1,6 @@
 # Publishing notes for the Substack series
 
-Sixteen chapters, an index and a glossary, all in Markdown. Substack's editor accepts pasted rich text but not Markdown files directly, so use one of the two routes below.
+Seventeen chapters, an index and a glossary, all in Markdown. Substack's editor accepts pasted rich text but not Markdown files directly, so use one of the two routes below.
 
 ## Route A: paste into the editor
 
@@ -40,6 +40,8 @@ Sixteen chapters, an index and a glossary, all in Markdown. Substack's editor ac
 | 15 | none |
 | 16 | `13-answer-from-pdf.png`, `14-pdf-viewer-citation.png`, `18-inbox-watched-folders.png`, `12-research-scope-preview.png`, `15-learn-overview.png`, `16-study-set.png`, `17-learning-plan.png`, `19-admin-dashboard.png`, `20-audit-log.png` |
 
+| 17 | none in the text; post the demo GIF (`../docs/media/citesure-demo.gif`, 2.5 MB, Substack accepts GIFs) at the top, with the live link |
+
 Chapter 2 has no image. Screenshots `01`-`11` and `13`-`20` were captured by `e2e/tests/screenshots.spec.ts` from a freshly seeded demo stack (fake models, so they are deterministic and cost nothing). `12-grafana-dashboard.png` comes from the monitoring stack (`grafana-shot.spec.ts`) and was not retaken.
 
 To recapture them, start a throw-away copy of the demo stack **with an empty env file** (Compose reads the `.env` in the project folder automatically, and you do not want your real settings or models in a screenshot), seed it, upload a small PDF, then run the script:
@@ -63,12 +65,13 @@ The merged-feature shots (`13`-`20`) expect, in the demo workspace: a PDF titled
 | 5 | 10, 11 | Shipping honestly; monitoring "up but wrong" |
 | 6 | 12, 13, 14 | Agent guardrails; the threat model; lessons |
 | 7 | 15, 16 | Keeping secrets in while letting research in; merging a second project and running it for real |
+| 8 | 17 | "Try it now": the live demo link, links that expire, and the 96 calls I paid for by accident |
 
 Each chapter stands alone, so readers can join at any point. End every post with the "Try it yourself" section; it gives readers something to do and to reply about.
 
 ## Before you publish: five checks
 
-1. **Do not claim a live demo.** The series says plainly that nothing was deployed. If you deploy it, update chapters 10 and 14.
+1. **Claim only the demo that exists.** The free demo at <https://citesure-demo.onrender.com> (fake models) is live and chapters 10, 14 and 17 say so; the AWS production setup is not deployed. Open the link the day you publish, and update those chapters if it changes.
 2. **Do not quote real-model quality numbers** unless you have run the real-model evaluation and replaced the table in `docs/eval-results.md`.
 3. Re-run the commands shown (`docker compose up`, the evaluation, the tests) on your machine and fix any number that has drifted (test counts in chapters 9 and 14).
 4. Read `security/ai-pr-audit.md` yourself and fill in the countersignature table before describing the security work as reviewed.
