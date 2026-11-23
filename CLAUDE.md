@@ -1,4 +1,4 @@
-# CLAUDE.md - CiteSure (Project 3)
+# CLAUDE.md - CiteSure
 
 > Rename this file to `CLAUDE.md` at the root of the CiteSure repository. Claude Code only auto-loads files named `CLAUDE.md`.
 
@@ -10,7 +10,8 @@ Guidance for Claude Code (and other coding agents) working in this repository.
 
 This is a final project for the DataTalksClub AI Dev Tools Zoomcamp. Grading rubric: [docs/course/final-project-rubric.md](docs/course/final-project-rubric.md). Agent extension pack requirements: [docs/course/module5-requirements.md](docs/course/module5-requirements.md).
 
-- **Roadmap and current phase:** `plan.md` (originally `plan_proj3.md`). Read it before starting work, and tick checkboxes when a task is done.
+- **Roadmap and status:** `plan.md`. Read it before starting work, and update its status table when a task is done.
+- **Build team:** `agent-team/` (tech lead plus specialist subagents; synced to `.claude/agents/` by `agent-hooks/install.py`).
 - **Product requirements:** `product-spec.md`
 - **API contract (source of truth):** `openapi.yaml`
 - **RAG design decisions and the experiments behind them:** `docs/rag-design.md`, `docs/eval-results.md`
@@ -27,7 +28,7 @@ These protect the product's core promise. Never break them, even temporarily.
 
 ## Workflow Rules
 
-1. **One task at a time.** Pick a single unchecked item from `plan.md`, state the plan in 2–5 bullets, then implement. Keep diffs small.
+1. **One task at a time.** Pick a single open item from `plan.md`, state the plan in 2–5 bullets, then implement. Keep diffs small.
 2. **Contract first.** API changes start in `openapi.yaml`. Then regenerate the frontend client, then update the backend.
 3. **Measure RAG changes.** Any change to parsing, chunking, embedding, retrieval, prompts or verification must include an eval run (`make eval` or the equivalent) with before/after metrics in the PR description or `docs/eval-results.md`. "Looks better" is not evidence.
 4. **Tests are part of the task.** A task is done only when the relevant tests exist and pass. Run them, don't assume.
@@ -64,7 +65,8 @@ e2e/                       Playwright
 corpus/                    fetch script + license notes (raw docs are git-ignored)
 examples/                  fictional sample company laid out for the inbox; app/seed_example.py creates its workspace
 ops/  security/  docs/
-agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/
+agent-team/  agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/
+deploy/demo/  render.yaml  single-container public demo (free Render instance; docs/public-demo.md)
 ```
 
 ## Commands
@@ -116,15 +118,18 @@ The dev machine runs Windows with PowerShell. Prefer cross-platform commands. Us
 ## Coding Conventions
 
 **Python:**
+
 - 3.12, full type hints, `ruff`, `mypy` clean.
 - Pydantic v2 and SQLAlchemy 2.0 style, async endpoints.
 - Raise domain exceptions; map them to HTTP errors in one handler.
 
 **TypeScript:**
+
 - `strict` mode, function components, TanStack Query hooks around the generated client.
 - No ad-hoc `fetch`. The SSE client lives in `src/api/stream.ts`.
 
 **Prompts:**
+
 - Prompts live as versioned files in `rag/generation/prompts/`, not inline strings.
 - A prompt change is a RAG change (see Workflow rule 3).
 
@@ -158,11 +163,11 @@ The dev machine runs Windows with PowerShell. Prefer cross-platform commands. Us
 
 ## Definition of Done
 
-- [ ] Non-negotiables intact (ACL pre-filter, verification, untrusted-text handling, golden set untouched)
-- [ ] Layering and conventions followed
-- [ ] Lint, type-check and relevant tests pass locally
-- [ ] RAG change: eval run with before/after metrics recorded
-- [ ] `openapi.yaml`, the generated client and the backend agree (when the API changed)
-- [ ] Migration added (when the schema changed)
-- [ ] `plan.md` checkbox ticked and `docs/ai-workflow.md` entry added
-- [ ] README or this file updated if setup, commands or behavior changed
+- [X] Non-negotiables intact (ACL pre-filter, verification, untrusted-text handling, golden set untouched)
+- [X] Layering and conventions followed
+- [X] Lint, type-check and relevant tests pass locally
+- [X] RAG change: eval run with before/after metrics recorded
+- [X] `openapi.yaml`, the generated client and the backend agree (when the API changed)
+- [X] Migration added (when the schema changed)
+- [X] `plan.md` status updated and `docs/ai-workflow.md` entry added
+- [X] README or this file updated if setup, commands or behavior changed

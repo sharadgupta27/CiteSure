@@ -243,7 +243,8 @@ def test_plugin_and_claude_copies_match_the_canonical_files() -> None:
 
 
 def test_every_skill_and_subagent_has_valid_frontmatter() -> None:
-    for path in [*(REPO / "agent-capabilities").glob("*/SKILL.md"), *(REPO / "agent-capabilities/subagents").glob("*.md")]:
+    team = [p for p in (REPO / "agent-team").glob("*.md") if p.name != "README.md"]
+    for path in [*(REPO / "agent-capabilities").glob("*/SKILL.md"), *(REPO / "agent-capabilities/subagents").glob("*.md"), *team]:
         text = path.read_text(encoding="utf-8")
         assert text.startswith("---\n"), path
         header = text.split("---", 2)[1]
@@ -252,7 +253,13 @@ def test_every_skill_and_subagent_has_valid_frontmatter() -> None:
 
 
 def test_read_only_subagents_have_no_write_tools() -> None:
-    for name in ("retrieval-debugger", "citation-auditor", "api-contract-reviewer"):
-        header = (REPO / "agent-capabilities/subagents" / f"{name}.md").read_text(encoding="utf-8").split("---", 2)[1]
+    read_only = {
+        "retrieval-debugger": "agent-capabilities/subagents",
+        "citation-auditor": "agent-capabilities/subagents",
+        "api-contract-reviewer": "agent-capabilities/subagents",
+        "security-reviewer": "agent-team",
+    }
+    for name, folder in read_only.items():
+        header = (REPO / folder / f"{name}.md").read_text(encoding="utf-8").split("---", 2)[1]
         tools = next(line for line in header.splitlines() if line.startswith("tools:"))
         assert not any(word in tools for word in ("Edit", "Write", "MultiEdit", "NotebookEdit", "run_eval")), (name, tools)

@@ -4,7 +4,7 @@
 
 **You will learn:** how to merge two projects without rewriting either, how to open a citation on the *real PDF page*, how to keep a study plan honest with the same verification as any answer, how a tamper-evident log works, and why a mocked test is not the same as running the thing.
 **You will build:** a PDF viewer with a cited-quote outline, watched folders that follow your access rules, on-demand open-access full text, a learning layer, an audit log and an admin dashboard.
-**Time:** about 6 hours. **Code and files:** `backend/app/rag/parsing/pdf.py`, `frontend/src/components/PdfViewer.tsx`, `backend/app/services/` (`inbox`, `fulltext`, `learning/`, `audit`), `frontend/src/pages/` (`LearnPage`, `InboxPage`, `DashboardPage`, `AuditPage`), `docs/merge-roadmap.md`.
+**Time:** about 6 hours. **Code and files:** `backend/app/rag/parsing/pdf.py`, `frontend/src/components/PdfViewer.tsx`, `backend/app/services/` (`inbox`, `fulltext`, `learning/`, `audit`), `frontend/src/pages/` (`LearnPage`, `InboxPage`, `DashboardPage`, `AuditPage`), `plan.md`.
 
 ---
 
@@ -121,7 +121,7 @@ All off by default, all documented in their own pages:
 - **Tests:** about 430 backend unit tests and 182 integration tests against a real database, 165 frontend tests, strict type checks and linters clean.
 - **Run for real:** the rebuilt stack, with a local model, answered a question with a verified citation, wrote a summary and a plan, recorded the actions in the audit log, and the chain verified. The screenshots in this chapter come from a seeded copy of the demo company.
 - **Not run:** a real Keycloak or Entra login, real OCR, a Docker build with OCR included, and the learning prompts with a model tuned for them. They are covered by tests with fakes only. Do not trust them until you have tried them.
-- **Known gaps** are listed in `docs/merge-roadmap.md`: highlights cannot span two pages, the folder watcher polls instead of using file events, the full-text cache is shared across workspaces, and the interface cannot yet reorder study-set items.
+- **Known gaps** are listed in `plan.md` (section 6): highlights cannot span two pages, the folder watcher polls instead of using file events, the full-text cache is shared across workspaces, and the interface cannot yet reorder study-set items.
 
 ## Recap
 

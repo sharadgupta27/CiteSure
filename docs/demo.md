@@ -1,4 +1,22 @@
-# Agent demo: from "that answer is wrong" to a reviewed fix
+# Demos
+
+## Product demo video
+
+[media/citesure-demo.mp4](media/citesure-demo.mp4) (1 minute, 1280×720, captions instead of sound): an employee gets a cited answer and opens the highlighted source, the same employee is refused a restricted question, an HR member gets the confidential answer, and the admin shows access rules, a Quality evaluation run and the verified audit log.
+
+It is recorded by Playwright, not by hand, so it can be re-recorded after any UI change:
+
+```bash
+docker build -t citesure-demo deploy/demo && docker run --rm -d -p 7860:7860 --name citesure-demo citesure-demo
+cd e2e && DEMO_VIDEO=1 BASE_URL=http://localhost:7860 npx playwright test demo-video   # writes docs/media/citesure-demo.webm
+# convert to MP4 (plays everywhere); ffmpeg ships in the imageio-ffmpeg package if you have none:
+ffmpeg -i ../docs/media/citesure-demo.webm -c:v libx264 -pix_fmt yuv420p -crf 26 -movflags +faststart -an ../docs/media/citesure-demo.mp4
+rm ../docs/media/citesure-demo.webm
+```
+
+The script is [e2e/tests/demo-video.spec.ts](../e2e/tests/demo-video.spec.ts). Run it against a freshly seeded stack.
+
+## Agent demo: from "that answer is wrong" to a reviewed fix
 
 This is the Module 5 demo script ([requirements](course/module5-requirements.md)) played on a **real** wrong answer from this system.
 Outputs marked **captured** were produced by the running stack. Parts that need a live Claude Code session (the agent choosing skills and spawning subagents)

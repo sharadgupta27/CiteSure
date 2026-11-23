@@ -1,0 +1,13 @@
+# Render Blueprint: the free public demo (one container, fake models, fictional documents).
+# Render dashboard: New, Blueprint, pick this repository. Guide: docs/public-demo.md
+services:
+  - type: web
+    name: citesure-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/demo/Dockerfile
+    dockerContext: ./deploy/demo
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT          # nginx in the container listens on 7860
+        value: "7860"

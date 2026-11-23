@@ -1,297 +1,125 @@
 # CiteSure - answers you can verify
 
-**Grounded document Q&A with checked citations and permission-aware retrieval.** Ask a question about your company's documents. Every sentence in the answer carries a citation, every citation was checked against its source before you see it, and people can only ever get answers from documents they are allowed to read. Citations open on the **real PDF page**, a **learning layer** turns documents into verified study plans, and admins get a **tamper-evident audit log** and a dashboard.
+**Ask questions about your company's documents. Every sentence in the answer is cited, every citation is checked against its source, and nobody gets answers from documents they may not read.**
 
 ![An answer with numbered citations](substack/images/02-answer-with-citations.png)
 
-> Final project for the DataTalksClub **AI Dev Tools Zoomcamp** (rubric: [docs/course/final-project-rubric.md](docs/course/final-project-rubric.md), agent pack: [docs/course/module5-requirements.md](docs/course/module5-requirements.md)). Built with a coding agent; how is documented in [docs/ai-workflow.md](docs/ai-workflow.md).
-> A step-by-step guide to building it, in plain language (16 chapters), is in [substack/](substack/00-series-index.md).
-
-## 1. The problem
-
-Employees lose hours searching handbooks, policies and manuals. Generic chatbots answer confidently but cannot show *where* an answer came from, so nobody trusts them for HR, compliance or security questions. Many internal "chat with your docs" systems also **leak documents across permission boundaries**: a bot that can read the confidential folder will happily summarise it for anyone.
-
-CiteSure fixes both:
-
-1. **Every sentence has a citation** (document, section/page and the exact quoted words).
-2. **Every citation is verified.** The quote must really exist in the cited passage, and a second check must confirm the passage supports the claim. Claims that fail are dropped; if nothing survives, CiteSure says *"I don't have information on that"* and points to the closest documents you may read.
-3. **Access control lives inside retrieval.** Chunks from collections you may not read are never fetched, so they cannot leak into an answer, a count or a timing signal.
-4. **You can measure it.** A quality dashboard scores retrieval, citations and refusals on a golden question set, and a CI gate fails any change that answers a restricted question.
-
-### Expected behaviour (the happy path, all covered by E2E tests)
-
-1. An admin creates a workspace with two collections: `General` (everyone) and `People-Ops-Confidential` (HR group only), and uploads documents (PDF, DOCX, Markdown, HTML). Ingestion runs in the background; each document shows `queued → parsing → embedding → ready`.
-2. An employee asks *"How many weeks of paid parental leave do primary caregivers get?"* and gets *"Primary caregivers receive 16 weeks of fully paid leave."* with a numbered citation. Clicking it opens the source with the quoted words highlighted.
-3. The same employee asks *"What is the maximum severance in weeks?"*, which exists only in the confidential collection, and gets *"I don't have information on that"*. An HR member asks the same question and gets the answer, cited to the confidential document.
-4. A thumbs-down with a comment lands in the admin's feedback queue; the admin promotes it to the golden set. The **Quality** page runs the evaluation and compares configurations (for example vector-only versus hybrid + rerank).
-
-| Source viewer (quoted words highlighted)            | Restricted question refused                                 | HR sees the confidential answer                         |
-| --------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
-| ![](substack/images/03-source-viewer-highlight.png) | ![](substack/images/04-refusal-for-restricted-question.png) | ![](substack/images/06-hr-answer-from-confidential.png) |
-
-| Documents and ingestion status              | Access control                                       | Quality dashboard                           |
-| ------------------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
-| ![](substack/images/07-admin-documents.png) | ![](substack/images/08-workspace-access-control.png) | ![](substack/images/09-quality-compare.png) |
-
-### What else is in the box
-
-CiteSure also absorbed the features of a second project (`document_explorer`); the plan and status are in [docs/merge-roadmap.md](docs/merge-roadmap.md), the story in [chapter 16](substack/16-merging-a-second-project.md).
-
-| Feature | What you get | Docs |
-| --- | --- | --- |
-| **PDF viewer** | A citation opens the real page with the quoted words outlined; your own highlights and notes (private to you); reading progress in the toolbar. PDF.js is bundled, nothing loads from a CDN. | [viewer-and-inbox.md](docs/viewer-and-inbox.md) |
-| **Table-aware PDF parsing** | PyMuPDF reads headings, page numbers and tables (three or more columns), so a citation can point at a table row. | [rag-design.md](docs/rag-design.md) |
-| **Watched folders** | Drop files in `<workspace>/<collection>/`; the folder picks the collection, the collection decides who can read. A folder that matches nothing is quarantined. | [viewer-and-inbox.md](docs/viewer-and-inbox.md) |
-| **Published research** | Search arXiv, Crossref, OpenAlex, Europe PMC and Semantic Scholar; fetch the open-access full text of a paper on demand, within a daily budget and through the egress guard. | [public-research.md](docs/public-research.md), [open-access-fulltext.md](docs/open-access-fulltext.md) |
-| **Learn** | Reading progress, study sets, learning plans, summarize and compare. Every sentence is a verified claim with a citation, like any answer. | [learning-layer.md](docs/learning-layer.md) |
-| **Audit log and dashboard** | A hash-chained log of who did what (ids and counts, never text) with a **Verify chain** button and CSV export; counts, rates and timings for admins. | [audit-dashboard.md](docs/audit-dashboard.md) |
-| **Optional** | Single sign-on (Keycloak, Entra, Google), an encrypted vault for uploads, local OCR for scanned PDFs. All off by default. | [oidc.md](docs/oidc.md), [vault-and-ocr.md](docs/vault-and-ocr.md) |
-
-| Real PDF page, cited words outlined | Study set with progress | Learning plan (every step cited) |
-| --- | --- | --- |
-| ![](substack/images/14-pdf-viewer-citation.png) | ![](substack/images/16-study-set.png) | ![](substack/images/17-learning-plan.png) |
-
-| Watched folders | Admin dashboard | Audit log with a verified chain |
-| --- | --- | --- |
-| ![](substack/images/18-inbox-watched-folders.png) | ![](substack/images/19-admin-dashboard.png) | ![](substack/images/20-audit-log.png) |
-
-| Choose where to look; preview the keywords that would leave |
-| --- |
-| ![](substack/images/12-research-scope-preview.png) |
-
-> **How far this is verified.** The code is covered by tests, and the rebuilt private stack was exercised end to end with a local model (answer, summary, plan, audit chain). **Not run:** a real Keycloak or Entra login, real OCR, and a Docker build with OCR included; the learning prompts have only been tried with fake models and a small local one. Known gaps: [docs/merge-roadmap.md](docs/merge-roadmap.md#known-gaps).
-
-## 2. Results (measured)
-
-Deterministic fake providers, 40 golden questions, three identical runs. Full table, caveats and known failures: [docs/eval-results.md](docs/eval-results.md).
-
-| config                              | recall@6 | MRR            | cite-precision | cite-recall | wrongly refused | **restricted questions refused** |
-| ----------------------------------- | -------- | -------------- | -------------- | ----------- | --------------- | -------------------------------------- |
-| vector only                         | 1.00     | 0.91           | 0.93           | 0.93        | 7%              | **100%**                         |
-| hybrid (vector + keyword)           | 1.00     | 0.94           | 0.93           | 0.93        | 7%              | **100%**                         |
-| **hybrid + rerank (default)** | 1.00     | **0.98** | 0.91           | 0.97        | **3%**    | **100%**                         |
-
-> Adding the reranker raised MRR from **0.91 to 0.98** and cut wrongful refusals from **7% to 3%**; no configuration ever answered a restricted question. These numbers measure the retrieval, citation and access-control plumbing with fake models; the real-model run is a nightly job (needs an API key) and is **not** included here.
-
-## 3. Architecture and technologies
-
-```text
-React (Vite) ──REST/SSE──▶ FastAPI ──▶ Postgres 16 + pgvector     ◀── Worker (parse → chunk → embed → index; watched folders; eval runs)
- served by nginx            │  ACL → hybrid retrieve → rerank → generate claims → VERIFY → answer | refusal
-                            └──▶ LLM provider (Anthropic | fake)   embeddings (fastembed | fake)   blobs (local | S3)
-```
-
-| Part          | Technology                                           | Role                                                                                                                                     |
-| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend      | React 18, TypeScript, Vite, Tailwind, TanStack Query, PDF.js | Ask, Documents, Learn, source and PDF viewer; admin: Workspace, Inbox, Dashboard, Audit log, Feedback queue, Quality. One typed API client generated from `openapi.yaml`. |
-| Contract      | OpenAPI 3.1 (`openapi.yaml`) + Spectral            | Source of truth; a drift test fails if the backend disagrees.                                                                            |
-| Backend       | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic  | Layered `api → services → repositories`.                                                                                             |
-| PDF parsing   | PyMuPDF (AGPL-3.0, see §11), optional Tesseract OCR  | Headings, pages and tables with positions; scanned PDFs when OCR is switched on.                                                         |
-| Database      | PostgreSQL 16 + pgvector + full-text search          | One database for documents, vectors, ACLs, jobs, answers and evaluation.                                                                 |
-| Containers    | Docker, Compose                                      | `docker compose up` runs db, migrations, api, worker and frontend; the private stack adds Ollama, a Squid egress proxy and Caddy (all compose files: §4). |
-| CI/CD         | GitHub Actions                                       | Lint, types, unit, integration, E2E, security scans, image build; RAG-eval gate; deploy to EC2 after green CI.                           |
-| Observability | OpenTelemetry, Prometheus, Grafana, Loki, Tempo      | Per-stage latency, refusal/verification rates, cost, alerts.                                                                             |
-
-More detail and the request flows: [docs/architecture.md](docs/architecture.md). Every RAG design decision and the experiment behind it: [docs/rag-design.md](docs/rag-design.md).
-
-## 4. Run it (reproducible, verified)
-
-Requirements: Docker with Compose v2. (For development also: Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 22.)
-
-```bash
-git clone <this repo> && cd CiteSure
-docker compose up -d --build                           # db + migrations + api :8000 + worker + frontend :5173
-docker compose run --rm api python -m app.seed         # demo users, 2 collections, 20 documents, 40 golden questions
-```
-
-Open [http://localhost:5173](http://localhost:5173) and sign in (password for all demo users: `citesure-demo`, local development only):
-
-| User                      | Role                  | Try                                                                          |
-| ------------------------- | --------------------- | ---------------------------------------------------------------------------- |
-| `employee@acme.example` | member                | ask about parental leave; ask about severance (refused)                      |
-| `hr@acme.example`       | member + `hr` group | ask about severance (answered, cited to the confidential document)           |
-| `admin@acme.example`    | workspace admin       | Documents, Workspace, Feedback queue, **Quality** (run the evaluation), **Inbox**, **Dashboard**, **Audit log** |
-
-The default setup uses deterministic **fake providers** (no API key, no downloads, no cost). To use real models:
-
-```bash
-# real answers with Claude (needs a key)
-LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-... docker compose up -d
-# or with OpenAI (gpt-4.1 answers, gpt-4.1-mini verifies; override with OPENAI_ANSWER_MODEL / OPENAI_VERIFY_MODEL)
-LLM_PROVIDER=openai OPENAI_API_KEY=sk-... docker compose up -d
-# real local embeddings + cross-encoder reranker (baked into the image; larger build)
-WITH_ML=true EMBEDDING_PROVIDER=fastembed RERANKER=cross-encoder docker compose up -d --build
-# (changing the embedding provider needs a reindex: POST /documents/{id}/reindex)
-```
-
-Variables are documented in [.env.example](.env.example). Stop everything: `docker compose down` (add `-v` to delete the data).
-
-### Sample internal company
-
-[examples/](examples/README.md) holds the internal documents of an invented company, **Fernhollow Bicycle Works**: a handbook for everyone, engineering files for one group and finance files for another (Markdown, DOCX and PDF). The folder is laid out for the watched-folder inbox, so it imports without any uploading by hand. Set `INBOX_ROOT=/data/inbox`, `INBOX_HOST_DIR=./examples/inbox` and `INBOX_MOUNT_MODE=ro`, then run `docker compose run --rm api python -m app.seed_example` before `docker compose up -d`. Logins, setup steps and questions to try are in [examples/README.md](examples/README.md).
-
-### Docker files at a glance
-
-| File | What it runs | Start | Published ports |
-|---|---|---|---|
-| [docker-compose.yml](docker-compose.yml) | development stack, Docker project `citesure-dev`: db (pgvector), migrate, api, worker, frontend | `docker compose up -d --build` | 5173 (app), 8000 (API), 5432 (Postgres) |
-| [docker-compose.private.yml](docker-compose.private.yml) | private stack, project `citesure`: db, migrate, ollama, egress-proxy, api, worker, frontend, caddy; `ollama-pull` (profile `setup`, one-off model download) | `docker compose -f docker-compose.private.yml up -d --build` | `BIND_ADDRESS:HTTP_PORT` (default 127.0.0.1:8080) and `HTTPS_PORT` (8443), Caddy only |
-| [docker-compose.gpu.yml](docker-compose.gpu.yml) | overlay for the private stack: gives `ollama` an NVIDIA GPU | add `-f docker-compose.gpu.yml` | none |
-| [docker-compose.prod.yml](docker-compose.prod.yml) | one-VM production stack from GHCR images: db, migrate, api, worker, frontend, caddy | `docker compose -f docker-compose.prod.yml up -d` (§8) | 80, 443 |
-| [ops/docker-compose.observability.yml](ops/docker-compose.observability.yml) | overlay for the development stack: Prometheus, Grafana, Tempo, OpenTelemetry Collector, Loki, Promtail | add `-f ops/docker-compose.observability.yml` | 3000 (Grafana), 9090 (Prometheus) |
-| [ops/docker-compose.observability.private.yml](ops/docker-compose.observability.private.yml) | overlay for the private stack: the same tools minus Promtail, on the no-internet network only | add `-f ops/docker-compose.observability.private.yml` | none (Grafana via Caddy at `/grafana/`) |
-| [backend/Dockerfile](backend/Dockerfile) | one image for api, worker, migrations and seed scripts (Python 3.12, non-root user) | built by the compose files | 8000 (inside the network) |
-| [frontend/Dockerfile](frontend/Dockerfile) | React build (Node 22) served by unprivileged nginx, which proxies `/api` | built by the compose files | 8080 (inside the network) |
-| [deploy/egress/Dockerfile](deploy/egress/Dockerfile) | the Squid allow-list proxy, the private stack's only way out | built by `docker-compose.private.yml` | 3128 (inside the network) |
-
-Build arguments of `backend/Dockerfile`:
-
-| Argument | Effect | Development stack | Private stack | Production images (CI) |
-|---|---|---|---|---|
-| `WITH_ML` | fastembed embeddings and cross-encoder reranker, models baked into the image | `false` (set `WITH_ML=true` to build them in) | `true` | `true` |
-| `WITH_OCR`, `OCR_LANGS` | Tesseract for scanned PDFs (needs `OCR_ENABLED=true` at runtime) | not passed (no OCR build) | `false`, `eng` (set `WITH_OCR=true`) | not set |
-| `WITH_S3` | boto3, for `STORAGE_BACKEND=s3` | not passed | not passed | `true` |
-
-## 4b. Private mode and public research (new)
-
-CiteSure can run so that **company documents never leave your machine** while still answering from **published papers and web pages**.
-
 | | |
 |---|---|
-| Company text | read only by a model you run (`LLM_PROVIDER=local`, e.g. Ollama) with local embeddings; a hosted model for it is refused at boot |
-| Published research | arXiv, Crossref, OpenAlex, Europe PMC, Semantic Scholar (and, with your Claude key, any web page) through an **egress guard** and an **allow-list proxy**; only keywords go out, you can preview and edit them, and every answer says what was sent |
-| Claude or OpenAI | reads public passages and guard-cleared questions only; never company text. Needs `PUBLIC_LLM_PROVIDER=anthropic` or `openai` and API credit; with `none`, the local model reads public passages too. The `web` source needs Claude (it uses Claude's web search) |
-| Proof | a canary planted in a document never appears in any outbound request or hosted prompt (integration tests); `deploy/verify-isolation.sh` proves the running stack has no other route out |
+| **Demo video** (1 min, captioned) | [docs/media/citesure-demo.mp4](docs/media/citesure-demo.mp4) |
+| **Live demo** | one free container on Render, deployed from this repo in 4 steps: [docs/public-demo.md](docs/public-demo.md) |
+| **How it was built** | Claude Code as a 12-agent team: [agent-team/](agent-team/README.md), log in [docs/ai-workflow.md](docs/ai-workflow.md) |
+| **Beginner's guide** | 16 plain-language chapters: [substack/](substack/00-series-index.md) |
 
-```bash
-cp .env.private.example .env       # secrets, EGRESS_DENY_TERMS, optionally ANTHROPIC_API_KEY or OPENAI_API_KEY for the public lane
-docker compose -f docker-compose.private.yml --profile setup run --rm ollama-pull
-docker compose -f docker-compose.private.yml up -d --build && deploy/verify-isolation.sh
-```
+> Final project for the DataTalksClub **AI Dev Tools Zoomcamp** ([rubric](docs/course/final-project-rubric.md), [Module 5 agent pack](docs/course/module5-requirements.md)).
 
-With an NVIDIA GPU, add `-f docker-compose.gpu.yml` to the `up` command (needs the NVIDIA Container Toolkit, or Docker Desktop with the WSL2 GPU backend). On a CPU-only machine, raise `LOCAL_LLM_TIMEOUT_S` if answers fail with "The local model failed".
+## The problem
 
-Keeping the private settings in a separate file (for example `.env.private`) instead? Compose reads only `.env` by itself, so add `--env-file .env.private` to every `docker compose -f docker-compose.private.yml ...` command above.
+Employees lose hours searching handbooks and policies. Chatbots answer confidently but cannot show *where* an answer came from, and many internal "chat with your docs" tools leak confidential files to anyone who asks. CiteSure fixes both:
 
-[docs/public-research.md](docs/public-research.md) · [docs/private-deployment.md](docs/private-deployment.md) · [docs/free-deployment.md](docs/free-deployment.md) (free hosting, and how EvalOps stays connected) · [docs/evalops-integration.md](docs/evalops-integration.md)
+1. **Every sentence has a citation**: the document, the section or page, and the exact quoted words.
+2. **Every citation is verified.** The quote must exist in the passage and a second check must confirm it supports the claim. Unsupported claims are dropped; if none survive, CiteSure says *"I don't have information on that"*.
+3. **Access control lives inside retrieval.** Text from collections you may not read is never fetched, so it cannot leak into an answer, a count or a timing signal.
+4. **Quality is measured.** A golden set of 40 questions scores retrieval, citations and refusals; CI fails any change that answers a restricted question.
 
-## 4c. Where to open everything
-
-Each stack publishes different ports. Links work once that stack is running. The development stack (Docker project `citesure-dev`) and the private stack (project `citesure`) have separate containers, volumes and ports, so they can run side by side, and the development stack never opens the private database.
-
-**Development stack** (`docker compose up -d --build`):
-
-| Web app | Link | Notes |
+| Source with quoted words highlighted | Restricted question refused | HR sees the confidential answer |
 |---|---|---|
-| CiteSure app | [http://localhost:5173](http://localhost:5173) | sign in with a demo user (table in section 4) |
-| API docs (Swagger UI) | [http://localhost:8000/docs](http://localhost:8000/docs) | interactive; switched off when `ENV=prod` |
-| API OpenAPI schema | [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json) | generated by FastAPI; the contract is [openapi.yaml](openapi.yaml) |
-| API health | [http://localhost:8000/healthz](http://localhost:8000/healthz) | |
-| API metrics (Prometheus format) | [http://localhost:8000/metrics](http://localhost:8000/metrics) | |
+| ![](substack/images/03-source-viewer-highlight.png) | ![](substack/images/04-refusal-for-restricted-question.png) | ![](substack/images/06-hr-answer-from-confidential.png) |
 
-**Observability overlay for the development stack** (`docker compose -f docker-compose.yml -f ops/docker-compose.observability.yml up -d --build`):
+**Also included:** a PDF viewer that opens citations on the real page · table-aware PDF parsing · watched folders that import files with the right access rules · search over published research (arXiv, Crossref, OpenAlex, Europe PMC, Semantic Scholar) · a learning layer (study sets, cited learning plans) · a hash-chained audit log and admin dashboard · optional SSO, encrypted uploads and OCR · a **private mode** where company text never leaves the machine. Details and status: [plan.md](plan.md).
 
-| Web app | Link | Notes |
-|---|---|---|
-| Grafana (dashboards, traces, logs) | [http://localhost:3000](http://localhost:3000) | `admin` / `admin` on first start; change it |
-| Prometheus (metrics, alerts) | [http://localhost:9090](http://localhost:9090) | |
+## Results
 
-**Private stack** (`docker compose -f docker-compose.private.yml up -d`). Everything goes through Caddy on `BIND_ADDRESS:HTTP_PORT`, which defaults to `127.0.0.1:8080`:
+40 golden questions, deterministic fake models, three identical runs ([full table and caveats](docs/eval-results.md)):
 
-| Web app | Link | Notes |
-|---|---|---|
-| CiteSure app | [http://127.0.0.1:8080](http://127.0.0.1:8080) | change `HTTP_PORT` if 8080 is taken |
-| Ask | [http://127.0.0.1:8080/ask](http://127.0.0.1:8080/ask) | every user |
-| Documents | [http://127.0.0.1:8080/documents](http://127.0.0.1:8080/documents) | every user |
-| Learn (summaries, comparisons, study sets, plans) | [http://127.0.0.1:8080/learn](http://127.0.0.1:8080/learn) | every user |
-| Dashboard | [http://127.0.0.1:8080/dashboard](http://127.0.0.1:8080/dashboard) | workspace admins |
-| Audit log | [http://127.0.0.1:8080/audit](http://127.0.0.1:8080/audit) | workspace admins |
-| Inbox (watched folder) | [http://127.0.0.1:8080/inbox](http://127.0.0.1:8080/inbox) | workspace admins |
-| Workspace (members, groups, collections) | [http://127.0.0.1:8080/workspace](http://127.0.0.1:8080/workspace) | workspace admins |
-| Feedback queue | [http://127.0.0.1:8080/feedback](http://127.0.0.1:8080/feedback) | workspace admins |
-| Quality (evaluation runs) | [http://127.0.0.1:8080/quality](http://127.0.0.1:8080/quality) | workspace admins |
-| Health | [http://127.0.0.1:8080/healthz](http://127.0.0.1:8080/healthz) | |
-| Grafana (dashboards, traces) | [http://127.0.0.1:8080/grafana/](http://127.0.0.1:8080/grafana/) | only with the private observability overlay (below); user `admin`, password `GRAFANA_ADMIN_PASSWORD`. Without the overlay this link gives 502 |
+| Configuration | MRR | Citation recall | Answerable but refused | **Restricted questions refused** |
+|---|---|---|---|---|
+| vector only | 0.91 | 0.93 | 7% | **100%** |
+| hybrid (vector + keyword) | 0.94 | 0.93 | 7% | **100%** |
+| **hybrid + rerank (default)** | **0.98** | **0.97** | **3%** | **100%** |
 
-The same pages also exist on the development stack at `http://localhost:5173/<page>`. In the private stack the API docs are off (it runs with `ENV=prod`), and Caddy answers `/metrics` with 404 so metrics never leave the machine. HTTPS on `HTTPS_PORT` (default 8443) works only after you set `SITE_ADDRESS` to a real domain name; with the default `:80` the stack serves plain HTTP on this machine only.
+The reranker lifted MRR from 0.91 to 0.98 and cut wrongful refusals from 7% to 3%; no configuration ever answered a restricted question. These numbers test the retrieval, citation and access-control plumbing; a real-model run needs an API key and has not been done.
 
-Private observability overlay: `docker compose -f docker-compose.private.yml -f ops/docker-compose.observability.private.yml --env-file .env.private up -d`. Prometheus, Loki, Tempo, the collector and Grafana join only the no-internet network and publish no ports; Grafana is reached through Caddy. Promtail is left out because it needs the Docker socket, so the dashboard's log panel is empty there (use `docker compose logs api`). Details: [docs/private-deployment.md](docs/private-deployment.md#monitoring).
-
-**Production stack** ([docker-compose.prod.yml](docker-compose.prod.yml)): `https://<DOMAIN>` (Caddy gets the certificate automatically). It isn't deployed; see section 8.
-
-The MCP server ([mcp-server/](mcp-server/)) is not a web app. It runs as a stdio server inside your agent client.
-
-## 5. Test it
-
-| What                                                                                          | Command                                                                                                                                                                                              | Needs    | Count        |
-| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ |
-| Backend unit (fakes, fast)                                                                    | `cd backend && uv sync && uv run pytest -m "not integration"`                                                                                                                                      | nothing  | 458          |
-| Backend integration (real Postgres + pgvector, ACL leak tests, injection tests, worker, eval) | `cd backend && uv run pytest -m integration`                                                                                                                                                       | Docker   | 185           |
-| Lint and types                                                                                | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app`                                                                                                             |          |              |
-| Frontend (logic, components, pages)                                                           | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck`                                                                                                                       |          | 165           |
-| API contract                                                                                  | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py`                                                                                                |          |              |
-| End to end (browser, against Compose)                                                         | `docker compose up -d --build && docker compose run --rm api python -m app.seed && cd e2e && npm ci && npx playwright install chromium && npx playwright test`                                     | Docker   | 9            |
-| Agent pack                                                                                    | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`; `cd mcp-server && uv run pytest`; `cd custom-agent && uv run --no-project --with pytest --with httpx python -m pytest` |          | 60 + 13 + 13 |
-| Evaluation (quality)                                                                          | `cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml`                                                                                                                     | Postgres | 40 questions |
-
-Integration tests are clearly separated (`@pytest.mark.integration`, folder `tests/integration/`) and never call a real LLM or embedding API. The **ACL leak tests** cover every endpoint that returns content: documents, chunks, files, ask, streaming, retrieval diagnostics, and stored answers after access is revoked.
-
-## 6. The agent extension pack (Module 5)
-
-Everything a coding agent needs to work on CiteSure safely: [docs/agent-extension-pack.md](docs/agent-extension-pack.md) · [permissions](docs/permissions.md) · [demo script](docs/demo.md).
-
-| Piece                                                                                        | Where                                                                                                                                  |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Project instructions                                                                         | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                                                                           |
-| 4 reusable workflows (skills)                                                                | [agent-capabilities/](agent-capabilities/): `add-golden-question`, `ingest-new-doc-type`, `tune-retrieval`, `review-api-change` |
-| 3 specialist subagents (read-only)                                                           | `retrieval-debugger`, `citation-auditor`, `api-contract-reviewer`                                                                |
-| MCP server (6 tools, scoped service user, internal scope only)                                                    | [mcp-server/](mcp-server/)                                                                                                              |
-| Guardrail hooks (secrets, golden-set, migrations, destructive commands; format; stop checks) | [agent-hooks/](agent-hooks/)                                                                                                            |
-| Plugin and nightly custom agent                                                              | [plugins/citesure-agent-pack/](plugins/citesure-agent-pack/), [custom-agent/](custom-agent/)                                             |
-
-## 7. Security
-
-Threat model, AI/data policy and real scanner output (gitleaks, Semgrep, Trivy, pip-audit, npm audit) are in [security/](security/). Highlights: ACL enforced inside retrieval SQL; document text treated as untrusted (delimited, never obeyed, no tools for the model); magic-byte upload validation; rate limits; strict CORS and CSP; deleting a document also scrubs its quotes from stored answers; an agent cannot loosen its own guardrails.
-In private mode the leak paths are closed four ways (boot checks, routing, a runtime safety net, a network with no route to the internet) and the residual risks (keywords reveal a topic, the guard needs good deny lists) are stated in [docs/public-research.md](docs/public-research.md#limits-you-should-know).
-Added with the merge: a hash-chained audit log (ids and counts only, never text; keep a copy of the latest hash to also detect removal of the newest entries), optional encryption of uploads at rest, optional single sign-on, and watched folders that quarantine files they cannot place instead of guessing access.
-Known gaps are listed honestly in the threat model (JWT in `localStorage`, in-memory rate limits, no malware scanning, admins read everything).
-
-## 8. Deployment
-
-Target: one AWS EC2 `t3.medium` running [docker-compose.prod.yml](docker-compose.prod.yml) behind Caddy (automatic HTTPS), images from GHCR, built and rolled out by [.github/workflows/deploy.yml](.github/workflows/deploy.yml) when started by hand (Actions → Deploy → Run workflow; automatic deploys after green CI are off until an EC2 host exists). Step-by-step: [docs/deployment.md](docs/deployment.md).
-
-Free and private options (your own machine, Tailscale Funnel or Cloudflare Tunnel for EvalOps, a free VM for a demo): [docs/free-deployment.md](docs/free-deployment.md). The private stack ([docker-compose.private.yml](docker-compose.private.yml)) was brought up and verified locally.
-
-> **Status:** the pipeline, compose file and runbook are written and the production images build, but **no public instance was deployed from this repository** (it needs an AWS account, a domain and GitHub secrets that are not part of this codebase). Rubric item "deployed with a working URL" is therefore not claimed.
-
-## 9. Repository map
+## Architecture
 
 ```text
-README.md  product-spec.md  AGENTS.md  CLAUDE.md  plan.md  openapi.yaml
-docker-compose.yml  docker-compose.private.yml  docker-compose.gpu.yml  docker-compose.prod.yml
-frontend/  backend/  e2e/  corpus/  examples/  docs/  security/  ops/  deploy/  .github/workflows/
-agent-capabilities/  agent-hooks/  mcp-server/  plugins/  custom-agent/  substack/
+React (Vite) ──REST/SSE──▶ FastAPI ──▶ Postgres 16 + pgvector  ◀── Worker (parse → chunk → embed → index, evals)
+ served by nginx            │  ACL → hybrid retrieve → rerank → generate claims → VERIFY → answer or refusal
+                            └──▶ LLM (Claude | OpenAI | local Ollama | fake)   embeddings (fastembed | fake)
 ```
 
-## 10. Rubric coverage
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind, TanStack Query, PDF.js; client generated from `openapi.yaml` |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async), Alembic, PyMuPDF |
+| Data | PostgreSQL 16 with pgvector and full-text search (one database for documents, vectors, ACLs, jobs, evals) |
+| Ops | Docker Compose, GitHub Actions (CI, RAG-eval gate, deploy), OpenTelemetry, Prometheus, Grafana, Loki, Tempo |
 
-| #  | Criterion                                    | Where                                                                                                                                |
-| -- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 1  | Problem description                          | §1, [product-spec.md](product-spec.md)                                                                                               |
-| 2  | AI-assisted workflow                         | [docs/ai-workflow.md](docs/ai-workflow.md), [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)                                              |
-| 3  | Technologies and architecture                | §3, [docs/architecture.md](docs/architecture.md), [docs/rag-design.md](docs/rag-design.md)                                            |
-| 4  | Frontend (structure, centralised API, tests) | `frontend/src/api/` (single client), 165 Vitest tests, §5                                                                          |
-| 5  | API contract                                 | [openapi.yaml](openapi.yaml), generated client, drift test                                                                            |
-| 6  | Backend (structure, contract, tests)         | `backend/app/`, 643 pytest tests (458 unit + 185 integration)                                                                                                   |
-| 7  | Database (environments, docs)                | PostgreSQL + pgvector, Alembic, [architecture.md § environments](docs/architecture.md#environments-and-the-database-config-rubric-7) |
-| 8  | Containerisation                             | [docker-compose.yml](docker-compose.yml), multi-stage Dockerfiles, §4                                                                |
-| 9  | Integration tests                            | `backend/tests/integration/`, `e2e/`                                                                                             |
-| 10 | Deployment                                   | pipeline and runbook ready; **not deployed here** (§8)                                                                        |
-| 11 | CI/CD                                        | [.github/workflows/](.github/workflows/) (CI, RAG-eval gate, deploy)                                                                  |
-| 12 | Agent extension pack                         | §6                                                                                                                                  |
-| 13 | Security, audit, DevOps                      | [security/](security/), [ops/](ops/)                                                                                                   |
-| 14 | Reproducibility                              | §4 and §5                                                                                                                          |
+More: [architecture](docs/architecture.md) · [RAG design decisions](docs/rag-design.md) · [API contract](openapi.yaml).
 
-## 11. License
+## Run it
 
-MIT (code). **Exception: PyMuPDF**, used to read PDFs, is AGPL-3.0. That is fine for an internal deployment; if you distribute CiteSure or offer it as a service to others, publish your source under a compatible licence or swap the PDF library (it is imported only in `backend/app/rag/parsing/pdf.py` and `backend/app/research/fulltext.py`). The demo corpus is a fictional handbook written for this project. The optional GitLab Handbook download (`corpus/fetch_gitlab_handbook.py`) is CC BY-SA 4.0 and is never committed.
+Needs Docker with Compose v2.
+
+```bash
+git clone https://github.com/sharadgupta27/CiteSure.git && cd CiteSure
+docker compose up -d --build                        # db, migrations, API :8000, worker, app :5173
+docker compose run --rm api python -m app.seed      # demo users, 2 collections, 20 documents, 40 golden questions
+```
+
+Open <http://localhost:5173>. The password for every demo user is `citesure-demo` (local use only):
+
+| User | Try |
+|---|---|
+| `employee@acme.example` | ask about parental leave (answered), then about severance (refused) |
+| `hr@acme.example` | ask about severance (answered from the confidential document) |
+| `admin@acme.example` | Documents, Workspace, Quality (run the evaluation), Inbox, Dashboard, Audit log |
+
+The default uses fake models: no API key, no downloads, no cost. For real models:
+
+```bash
+LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-... docker compose up -d     # or LLM_PROVIDER=openai OPENAI_API_KEY=sk-...
+WITH_ML=true EMBEDDING_PROVIDER=fastembed RERANKER=cross-encoder docker compose up -d --build   # local embeddings + reranker
+```
+
+| Other ways to run | Guide |
+|---|---|
+| Private mode (local model, egress guard, allow-list proxy, no route out) | [docs/private-deployment.md](docs/private-deployment.md), [docs/public-research.md](docs/public-research.md) |
+| Every compose file, port and build argument; the sample company; observability | [docs/running.md](docs/running.md) |
+| Free public demo (one container: Render, Koyeb or any Docker host) | [docs/public-demo.md](docs/public-demo.md) |
+| Production on one VM (EC2, Caddy, GHCR images) and free hosting options | [docs/deployment.md](docs/deployment.md), [docs/free-deployment.md](docs/free-deployment.md) |
+
+## Test it
+
+| What | Command | Count |
+|---|---|---|
+| Backend unit (fakes, fast) | `cd backend && uv sync && uv run pytest -m "not integration"` | 458 |
+| Backend integration (real Postgres; ACL leak and prompt-injection tests) | `cd backend && uv run pytest -m integration` (needs Docker) | 186 |
+| Lint and types | `cd backend && uv run ruff check . && uv run mypy app` | |
+| Frontend | `cd frontend && npm ci && npm run test && npm run lint && npm run typecheck` | 165 |
+| API contract | `npx @stoplight/spectral-cli@6 lint openapi.yaml` and `uv run pytest tests/unit/test_contract.py` | |
+| End to end | stack up and seeded, then `cd e2e && npm ci && npx playwright install chromium && npx playwright test` | 9 |
+| Agent pack | `uv run --no-project --with pytest python -m pytest agent-hooks/tests`, `cd mcp-server && uv run pytest` | 60 + 13 |
+| Evaluation | `cd backend && uv run python -m app.evals.run --matrix evals/experiments.yaml` | 40 questions |
+
+Tests never call a real model. The ACL leak tests cover every endpoint that returns content.
+
+## Built with AI agents
+
+| Piece | Where |
+|---|---|
+| The team that built it (tech lead + 11 specialists, by phase) | [agent-team/](agent-team/README.md) |
+| How the work was planned, delegated and verified | [docs/ai-workflow.md](docs/ai-workflow.md), [CLAUDE.md](CLAUDE.md), [AGENTS.md](AGENTS.md) |
+| Agent extension pack: 4 skills, 3 read-only subagents, MCP server (scoped service user), guardrail hooks, plugin, nightly agent | [docs/agent-extension-pack.md](docs/agent-extension-pack.md), [docs/permissions.md](docs/permissions.md) |
+
+## Security
+
+The ACL is enforced in the retrieval SQL; document text is treated as untrusted (delimited, never obeyed, no tools for the model); uploads are checked by magic bytes; rate limits, strict CORS and CSP; deleting a document also scrubs its quotes from stored answers; agents cannot loosen their own guardrails. Threat model, AI data policy and real scanner output: [security/](security/). Known gaps are listed there and in [plan.md](plan.md#6-known-gaps).
+
+## Status
+
+Verified: all test suites above, the development stack, and the private stack end to end with a local model. **Not done:** a real-model evaluation, a real Keycloak/Entra login, real OCR, and the AWS deployment (pipeline and runbook are written). Full status: [plan.md](plan.md).
+
+## License
+
+MIT. **Exception:** PyMuPDF (PDF reading) is AGPL-3.0: fine for internal use; if you offer CiteSure as a service to others, publish your source or swap the library (used only in `backend/app/rag/parsing/pdf.py` and `backend/app/research/fulltext.py`). The demo documents are fictional.

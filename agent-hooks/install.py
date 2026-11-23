@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CAPS = ROOT / "agent-capabilities"
+TEAM = ROOT / "agent-team"
 HOOKS = ROOT / "agent-hooks"
 MCP = ROOT / "mcp-server"
 PLUGIN = ROOT / "plugins" / "citesure-agent-pack"
@@ -34,6 +35,10 @@ def pairs() -> list[tuple[Path, Path]]:
     for agent in sorted((CAPS / "subagents").glob("*.md")):
         result.append((agent, ROOT / ".claude" / "agents" / agent.name))
         result.append((agent, PLUGIN / "agents" / agent.name))
+    # The build team is for developing CiteSure, so it goes to .claude/ only, not into the shareable plugin.
+    for agent in sorted(TEAM.glob("*.md")):
+        if agent.name != "README.md":
+            result.append((agent, ROOT / ".claude" / "agents" / agent.name))
     for name in HOOK_FILES:
         result.append((HOOKS / name, PLUGIN / "hooks" / "scripts" / name))
     for name in MCP_FILES:
