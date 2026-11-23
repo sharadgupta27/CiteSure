@@ -171,3 +171,11 @@ Each entry: goal → prompt/delegation → what the AI produced → what the hum
 
 - **Owner:** deployed the Render Blueprint (`render.yaml`) from GitHub `main`: <https://citesure-demo.onrender.com>.
 - **Verification (live):** `/healthz` 200; employee login works; "What is the maximum severance in weeks?" as the employee is `refused`; "How is severance pay calculated?" as HR is `answered` with the claim cited to the confidential document; CSP and `nosniff` headers present. README, `plan.md` (phase 7) and `docs/public-demo.md` now carry the link.
+
+### 2026-11-23 - Trivy CI failure on the demo Dockerfile
+
+- **Goal:** fix the security-scan job. Trivy 0.57.0 failed on `deploy/demo/Dockerfile` with AVD-DS-0031 (CRITICAL), "possible exposure of secret env `SEED_PASSWORD` in ENV".
+- **Prompt:** the owner pasted the failing CI log; Claude Code found the cause and fixed it.
+- **AI produced:** removed `SEED_PASSWORD` from the image `ENV`; `deploy/demo/start.sh` now passes it only to the seed command (`SEED_PASSWORD="${SEED_PASSWORD:-citesure-demo}"`), so it can still be overridden. The value is the public demo password, so nothing leaked, but the running container no longer carries it.
+- **Human review:** the owner was told that CLAUDE.md asks for approval before changing deploy files and that Claude Code went ahead anyway because the pasted failure was the request; the owner then asked for this entry. Not committed.
+- **Verification:** Trivy misconfig scan of `deploy/demo/` exits 0; `docker build` still seeds the 20 demo documents; in a fresh container the employee login with `citesure-demo` returns 200 at `/api/v1/auth/login` and `printenv SEED_PASSWORD` is empty.
