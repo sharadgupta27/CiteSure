@@ -1,5 +1,7 @@
 # CiteSure public demo container
 
+**Live:** <https://citesure-demo.onrender.com>
+
 One container with the whole app (Postgres + pgvector, API, worker, nginx on port 7860), fake models and the fictional Acme Robotics handbook. Deploy guide (Render, Koyeb, Hugging Face, any VM): [docs/public-demo.md](../../docs/public-demo.md).
 
 | File | Role |

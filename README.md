@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | **Demo video** (1 min, captioned) | [docs/media/citesure-demo.mp4](docs/media/citesure-demo.mp4) |
-| **Live demo** | one free container on Render, deployed from this repo in 4 steps: [docs/public-demo.md](docs/public-demo.md) |
+| **Live demo** | **<https://citesure-demo.onrender.com>**: sign in as `employee@acme.example` / `citesure-demo` (free tier: the first visit after 15 idle minutes shows a "waking up" page for about a minute). How it is hosted: [docs/public-demo.md](docs/public-demo.md) |
 | **How it was built** | Claude Code as a 12-agent team: [agent-team/](agent-team/README.md), log in [docs/ai-workflow.md](docs/ai-workflow.md) |
 | **Beginner's guide** | 16 plain-language chapters: [substack/](substack/00-series-index.md) |
 
@@ -118,7 +118,7 @@ The ACL is enforced in the retrieval SQL; document text is treated as untrusted 
 
 ## Status
 
-Verified: all test suites above, the development stack, and the private stack end to end with a local model. **Not done:** a real-model evaluation, a real Keycloak/Entra login, real OCR, and the AWS deployment (pipeline and runbook are written). Full status: [plan.md](plan.md).
+Verified: all test suites above, the development stack, the private stack end to end with a local model, and the public demo at <https://citesure-demo.onrender.com> (fake models). **Not done:** a real-model evaluation, a real Keycloak/Entra login, real OCR, and the AWS production deployment (pipeline and runbook are written). Full status: [plan.md](plan.md).
 
 ## License
 

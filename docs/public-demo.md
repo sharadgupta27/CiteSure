@@ -9,7 +9,7 @@ A public link anyone can open, at no cost: the whole app in **one Docker contain
 | Data | the fictional Acme Robotics handbook and its golden set; uploads and public research are off; everything resets on restart |
 | Size | about 190 MB of RAM in use, so it fits the free 512 MB / 0.1 CPU instance |
 | Sleep | Render's free tier sleeps after 15 minutes without visitors. The next visitor sees a "CiteSure is waking up" page that reloads itself; the app is ready about 1 to 2 minutes later |
-| Link | `https://citesure-demo.onrender.com` (or similar; Render shows it) |
+| Link | <https://citesure-demo.onrender.com> (live since 2026-11-23) |
 
 The container clones this GitHub repository at build time (`CITESURE_REF`, default `main`), so **push your changes to GitHub first**.
 

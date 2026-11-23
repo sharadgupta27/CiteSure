@@ -29,7 +29,8 @@ prepare() {
   alembic upgrade head
   log "seeding demo users and documents"
   # The seed loads the corpus through the upload service; only this command may upload, the API never can.
-  UPLOADS_ENABLED=true python -m app.seed
+  # The demo password is public (README), but it is passed only to the seed so it never sits in the image ENV.
+  UPLOADS_ENABLED=true SEED_PASSWORD="${SEED_PASSWORD:-citesure-demo}" python -m app.seed
   touch /data/.prepared
 }
 

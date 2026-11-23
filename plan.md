@@ -36,7 +36,7 @@ Data model and endpoints: [docs/architecture.md](docs/architecture.md) and [open
 | 4 | Retrieval, generation and verification, SSE streaming | ✅ | `GET /retrieval/explain` for debugging |
 | 5 | Evaluation, quality dashboard, feedback → golden set | ✅ | Real-model nightly eval written but never run (no API key). EvalOps gate verified locally only |
 | 6 | Testing depth (unit, integration, ACL leak, prompt injection, E2E) | ✅ | |
-| 7 | Containers, CI/CD, deployment | 🟡 | AWS pipeline written, not run. Free public demo: one container on Render ([docs/public-demo.md](docs/public-demo.md)) |
+| 7 | Containers, CI/CD, deployment | ✅ | Public demo live at <https://citesure-demo.onrender.com> (one free Render container, fake models; [docs/public-demo.md](docs/public-demo.md)). The AWS production pipeline is written but not run |
 | 8 | Observability (OpenTelemetry, Prometheus, Grafana, Loki, Tempo, alerts) | ✅ | |
 | 9 | Agent extension pack (skills, subagents, MCP server, hooks, plugin, nightly agent) | ✅ | A live Claude Code session using the pack was not recorded |
 | 10 | Security scans, threat model, AI data policy, hardening | 🟡 | File downloads need auth, but there are no short-lived signed URLs |

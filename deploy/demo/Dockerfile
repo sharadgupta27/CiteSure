@@ -65,7 +65,6 @@ ENV PATH="/srv/citesure/backend/.venv/bin:/usr/lib/postgresql/16/bin:$PATH" \
     PUBLIC_RESEARCH_ENABLED=false \
     UPLOADS_ENABLED=false \
     STORAGE_PATH=/data/uploads \
-    SEED_PASSWORD=citesure-demo \
     CORS_ORIGINS=http://localhost:7860 \
     TRUST_PROXY_HEADERS=true \
     PGDATA=/data/pg
