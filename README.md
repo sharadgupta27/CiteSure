@@ -2,11 +2,15 @@
 
 **Ask questions about your company's documents. Every sentence in the answer is cited, every citation is checked against its source, and nobody gets answers from documents they may not read.**
 
-![An answer with numbered citations](substack/images/02-answer-with-citations.png)
+## Demo
+
+[![CiteSure demo: a cited answer, the highlighted source, a refused restricted question, HR's confidential answer, access rules, an evaluation run and the audit log](docs/media/citesure-demo.gif)](docs/media/citesure-demo.mp4)
+
+*1-minute captioned walkthrough. Click it for the full-quality MP4, or try it yourself on the live demo below.*
 
 | | |
 |---|---|
-| **Demo video** (1 min, captioned) | [docs/media/citesure-demo.mp4](docs/media/citesure-demo.mp4) |
+| **Demo video** (1 min, captioned) | [MP4, 1.1 MB](docs/media/citesure-demo.mp4) · recorded by Playwright, how to re-record: [docs/demo.md](docs/demo.md) |
 | **Live demo** | **<https://citesure-demo.onrender.com>**: sign in as `employee@acme.example` / `citesure-demo` (free tier: the first visit after 15 idle minutes shows a "waking up" page for about a minute). How it is hosted: [docs/public-demo.md](docs/public-demo.md) |
 | **How it was built** | Claude Code as a 12-agent team: [agent-team/](agent-team/README.md), log in [docs/ai-workflow.md](docs/ai-workflow.md) |
 | **Beginner's guide** | 16 plain-language chapters: [substack/](substack/00-series-index.md) |

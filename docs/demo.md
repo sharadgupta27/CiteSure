@@ -11,6 +11,8 @@ docker build -t citesure-demo deploy/demo && docker run --rm -d -p 7860:7860 --n
 cd e2e && DEMO_VIDEO=1 BASE_URL=http://localhost:7860 npx playwright test demo-video   # writes docs/media/citesure-demo.webm
 # convert to MP4 (plays everywhere); ffmpeg ships in the imageio-ffmpeg package if you have none:
 ffmpeg -i ../docs/media/citesure-demo.webm -c:v libx264 -pix_fmt yuv420p -crf 26 -movflags +faststart -an ../docs/media/citesure-demo.mp4
+# the README preview (an inline GIF; GitHub does not play a repository MP4 inline):
+ffmpeg -i ../docs/media/citesure-demo.mp4 -vf "fps=8,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" -loop 0 ../docs/media/citesure-demo.gif
 rm ../docs/media/citesure-demo.webm
 ```
 
